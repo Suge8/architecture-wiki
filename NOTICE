@@ -1,0 +1,7 @@
+architecture-wiki
+Copyright 2026 Suge8
+
+This product includes Phosphor Icons (https://phosphoricons.com),
+licensed under the MIT License, Copyright (c) 2023 Phosphor Icons.
+Icon paths are inlined in skills/architecture-wiki/templates/architecture.html
+with stroke-width adjusted from 16 to 20 for small-size legibility.

@@ -1,0 +1,1726 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="wiki-digest" content="__WIKI_DIGEST__">
+<title>__TITLE__</title>
+<style>
+  :root {
+    --bg: #F2EFE6;
+    --surface: #E7E3D5;
+    --card: #FBFAF4;
+    --ink: #20261F;
+    --ink-soft: #71766B;
+    --line: rgba(32, 38, 31, .1);
+    --accent: #3E7A5E;
+    --accent-deep: #2C5E47;
+    --warn: #BE5560;
+    --navw: clamp(195px, 15vw, 235px);
+    --asidew: clamp(300px, 26vw, 420px);
+    --paper: var(--card);
+    --paper-hi: var(--card);
+    --mono: ui-monospace, "SF Mono", Menlo, "PingFang SC", monospace;
+    --sans: -apple-system, "PingFang SC", "Segoe UI", sans-serif;
+    --serif: "Georgia", "Songti SC", serif;
+    /* 浮空层材质：1px 半透 ring + 两层贴身柔光，代替「边框 + 一团模糊阴影」 */
+    --shadow-float: 0 0 0 1px oklch(0 0 0 / .07), 0 1px 2px -1px oklch(0 0 0 / .07), 0 3px 8px -2px oklch(0 0 0 / .07);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  ::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  nav, #panel, .hmodal, #flowbar { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink) 25%, transparent) transparent; }
+  #panel, .hmodal { text-wrap: pretty; }
+  /* 按下反馈：独立 scale/translate 属性不碰既有 transform/transition，可中断回弹；按压 80ms 释放 160ms */
+  #panel .chip, #panel .morebtn, .hmodal .hclose { transition: scale .16s cubic-bezier(.2, 0, 0, 1); }
+  /* 分段控件滑动指示器：选中态是一枚在按钮间滑动的药丸，位置/宽度由 JS 实测驱动 */
+  .seg-ind {
+    position: absolute; top: 3px; bottom: 3px; left: 0; z-index: 0; border-radius: 8px; pointer-events: none;
+    transition: translate .26s cubic-bezier(.22, 1, .36, 1), width .26s cubic-bezier(.22, 1, .36, 1);
+  }
+  .tabs .seg-ind { background: var(--card); border: 1px solid var(--line); }
+  #flowbar .seg-ind { border-radius: 9px; background: var(--accent); }
+  header button:active, .tabs button:active, #flowbar button:active, #panel .chip:active, #panel .morebtn:active, .vstat:active { scale: .96; transition-duration: .08s; }
+  .hmodal .hclose:active, nav .grp .chev:active { scale: .92; transition-duration: .08s; }
+  nav .item:active, nav .grp:active, #panel .steps li:active, #panel li.fi.mod:active { translate: 0 1px; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 12.5px/1.65 var(--sans);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .ic { width: 13px; height: 13px; flex-shrink: 0; vertical-align: -2px; }
+  /* Outline 默认、Fill 表选中：两层叠放做 cross-fade，槽位固定不抽动 */
+  .isw { position: relative; display: inline-flex; flex-shrink: 0; vertical-align: -2px; }
+  .isw .ic { vertical-align: 0; transition: opacity .16s cubic-bezier(.2, 0, 0, 1); }
+  .isw .if { position: absolute; inset: 0; opacity: 0; }
+  .sel .isw .if, .on .isw .if { opacity: 1; }
+  .sel .isw .io, .on .isw .io { opacity: 0; }
+  header { display: flex; align-items: center; gap: 15px; padding: 12px 16px 5px; }
+  header .ops { display: flex; align-items: center; gap: 6px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand img, .brand svg.logo { width: 28px; height: 28px; }
+  .brand .k { display: none; }
+  .brand .v { font: 700 15px var(--serif); white-space: nowrap; }
+  .statbar {
+    display: flex; align-items: center; gap: 13px; height: 32px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 11px; padding: 0 14px;
+  }
+  .statbar .stat { display: flex; align-items: baseline; gap: 5px; }
+  .statbar .stat .ic { width: 12px; height: 12px; color: var(--accent-deep); align-self: center; }
+  .statbar .k { font-size: 10.5px; color: var(--ink-soft); }
+  .statbar .v { font: 700 13px var(--mono); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .statbar .sep { width: 1px; height: 12px; background: var(--line); align-self: center; }
+  header .spacer { flex: 1; }
+  header button {
+    display: flex; align-items: center; gap: 6px; height: 32px;
+    font: 600 12px var(--sans); cursor: pointer; border-radius: 10px;
+    background: var(--card); color: var(--ink); border: 1px solid var(--line); padding: 0 14px;
+    transition: background .15s, color .15s, border-color .15s, scale .16s cubic-bezier(.2, 0, 0, 1);
+  }
+  header button.primary { background: var(--accent); color: #FFF; border-color: transparent; }
+  header button.primary:hover { background: var(--accent-deep); }
+  header button:not(.primary):hover { background: var(--surface); }
+  /* 体检入口：文字用墨色，分级色（--hc）只落在底色、图标与分数上 */
+  header button.vitals-btn {
+    --hc: var(--ink-soft);
+    background: color-mix(in srgb, var(--hc) 10%, transparent); border-color: transparent;
+  }
+  header button.vitals-btn:hover { background: color-mix(in srgb, var(--hc) 18%, transparent); }
+  header button.vitals-btn .ic { color: var(--hc); }
+  header button.vitals-btn .score { font: 700 12px var(--mono); color: var(--hc); font-variant-numeric: tabular-nums; }
+
+  dialog#healthDlg {
+    border: none; padding: 0; background: none; overflow: visible;
+    width: 100%; height: 100%; max-width: 100%; max-height: 100%;
+  }
+  dialog#healthDlg[open] { display: flex; align-items: center; justify-content: center; }
+  dialog#healthDlg::backdrop { background: rgba(32, 38, 31, .4); }
+  .hmodal {
+    width: min(860px, 92vw); max-height: 84vh; overflow-y: auto;
+    background: var(--card); border-radius: 18px;
+    padding: 18px 24px 26px; box-shadow: var(--shadow-float), 0 20px 60px rgba(20, 20, 19, .24);
+  }
+  /* forced-colors 会把 box-shadow 归零，只靠阴影画的边界要补真边框 */
+  @media (forced-colors: active) { #flowbar, .hmodal { border: 1px solid CanvasText; } }
+  .hmodal .hclose {
+    position: sticky; top: 0; float: right; margin: -4px -8px 0 0;
+    width: 28px; height: 28px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+    background: var(--card); border: 1px solid var(--line); color: var(--ink-soft); cursor: pointer;
+  }
+  .hmodal .hclose:hover { background: var(--surface); color: var(--ink); }
+  .hmodal .hhead {
+    display: flex; align-items: center; gap: 9px; color: var(--ink);
+    font: 700 19px/1.3 var(--serif); margin: 0 0 14px;
+  }
+  .hmodal .hhead .ic { color: var(--hc, var(--ink)); }
+  dialog#healthDlg[open] .hmodal { animation: hin .2s cubic-bezier(.16, 1, .3, 1); }
+  @keyframes hin { from { opacity: 0; transform: translateY(8px) scale(.985); } }
+  main { flex: 1; display: flex; min-height: 0; gap: 10px; padding: 10px 12px 12px; position: relative; }
+  /* 把手：贴边半圆，展开时贴面板外缘、收起时贴视口边缘，位置本身带过渡 */
+  .handle {
+    position: fixed; z-index: 30; top: 50%; transform: translateY(-50%);
+    width: 24px; height: 48px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--card); border: 1px solid var(--line); cursor: pointer;
+    color: var(--ink-soft);
+    transition: left .26s cubic-bezier(.2, 0, 0, 1), right .26s cubic-bezier(.2, 0, 0, 1),
+                width .15s, background .15s, color .15s;
+  }
+  .handle:hover { width: 28px; background: var(--surface); color: var(--accent-deep); }
+  .handle .ic { width: 13px; height: 13px; transition: transform .22s; }
+  /* 展开时向面板方向压 1px 盖住面板边框且不带阴影，半圆与面板融为一体；收起悬浮在屏幕边缘时才需要投影 */
+  #handleNav { left: calc(12px + var(--navw) - 1px); border-left: none; border-radius: 0 24px 24px 0; }
+  body.nav-off #handleNav { left: 0; box-shadow: 2px 0 10px rgba(20, 20, 19, .07); }
+  body.nav-off #handleNav .ic { transform: rotate(180deg); }
+  #handleAside { right: calc(12px + var(--asidew) - 1px); border-right: none; border-radius: 24px 0 0 24px; }
+  #handleAside .ic { transform: rotate(180deg); }
+  body.aside-off #handleAside { right: 0; box-shadow: -2px 0 10px rgba(20, 20, 19, .07); }
+  body.aside-off #handleAside .ic { transform: rotate(0deg); }
+  /* 跨断点是布局模式切换（挤占 ↔ 覆盖），定位机制不同无法平滑，瞬间切换比半吊子动画干净 */
+  body.no-anim nav, body.no-anim aside, body.no-anim .handle { transition: none; }
+  /* 拖宽把手：6px 命中区不变，可视指示是居中的小圆条 */
+  #asideResize {
+    position: absolute; z-index: 25; top: 10px; bottom: 12px; width: 6px;
+    right: calc(12px + var(--asidew) - 3px); cursor: col-resize;
+    transition: right .24s cubic-bezier(.2, 0, 0, 1);
+  }
+  #asideResize::after {
+    content: ""; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 3px; height: 44px; border-radius: 2px;
+    background: color-mix(in srgb, var(--accent) 60%, transparent);
+    opacity: 0; transition: opacity .15s;
+  }
+  #asideResize:hover::after, #asideResize.on::after { opacity: 1; }
+  body.aside-off #asideResize { display: none; }
+  body.resizing nav, body.resizing aside, body.resizing .handle, body.resizing #asideResize { transition: none; }
+  nav, #stage, aside {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+  }
+  nav {
+    width: var(--navw);
+    overflow-y: auto; padding: 8px 8px 20px; flex-shrink: 0;
+  }
+  nav, aside { transition: margin .24s cubic-bezier(.2, 0, 0, 1), opacity .18s ease-out; }
+  body.nav-off nav { margin-left: calc(-1 * var(--navw) - 10px); opacity: 0; pointer-events: none; }
+  body.aside-off aside { margin-right: calc(-1 * var(--asidew) - 10px); opacity: 0; pointer-events: none; }
+  nav .filter {
+    position: sticky; top: 0; background: var(--card); padding: 2px 2px 8px; z-index: 2;
+    display: flex; align-items: center; gap: 4px;
+  }
+  nav .filter .sbox { position: relative; flex: 1; min-width: 0; }
+  nav .filter .sic {
+    position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+    color: var(--ink-soft); pointer-events: none;
+  }
+  nav .filter input {
+    width: 100%; font: 12px var(--sans); padding: 6px 10px 6px 30px; border-radius: 9px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink); outline: none;
+  }
+  nav .filter input:focus { border-color: var(--accent); }
+  nav .grp {
+    display: flex; align-items: center; gap: 7px;
+    font: 700 10.5px var(--mono); letter-spacing: .1em;
+    margin: 12px 4px 4px; padding: 6px 10px; border-radius: 8px; cursor: pointer;
+  }
+  nav .grp .ct { margin-left: auto; font-weight: 400; letter-spacing: 0; }
+  nav .grp .chev {   /* 独立命中区 ≥28px（无障碍基线），箭头本身保持小尺寸 */
+    width: 28px; height: 28px; margin: -5px -8px -5px 2px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; color: inherit; cursor: pointer;
+    font-size: 9px; border-radius: 8px; transition: transform .15s, background .15s, scale .16s cubic-bezier(.2, 0, 0, 1);
+  }
+  nav .grp .chev:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+  nav .grp.closed .chev { transform: rotate(-90deg); }
+  nav .grpbody.closed { display: none; }
+  nav .item {
+    display: flex; gap: 8px; align-items: center; padding: 5.5px 9px; margin: 2px 0;
+    cursor: pointer; border-radius: 8px; line-height: 1.4;
+  }
+  nav .item:hover { background: var(--surface); }
+  nav .item.sel { background: color-mix(in srgb, var(--accent) 13%, transparent); color: var(--accent-deep); }
+  nav .item.hid { display: none; }
+  nav .item.dm { opacity: .35; }
+  nav .code {
+    font: 700 10.5px var(--mono); border: 1px solid var(--line); border-radius: 5px;
+    padding: 0 4px; min-width: 26px; text-align: center; background: var(--bg); flex-shrink: 0;
+  }
+  nav .nm { font-size: 12.5px; }
+  nav .ct { margin-left: auto; font-size: 11px; color: var(--ink-soft); }
+  nav .hdot { width: 6px; height: 6px; border-radius: 50%; background: var(--warn); flex-shrink: 0; }
+  #stage { flex: 1; position: relative; min-width: 0; cursor: grab; overflow: hidden; touch-action: none; }
+  #stage.panning { cursor: grabbing; }
+  #stage svg { width: 100%; height: 100%; display: block; }
+  #flowbar {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 3px; background: var(--card);
+    border-radius: 12px; padding: 3px; z-index: 5; max-width: 86%; overflow-x: auto;
+    box-shadow: var(--shadow-float);
+  }
+  #flowbar button {
+    position: relative; z-index: 1;
+    font: 600 11.5px var(--sans); border: 1px solid transparent; background: none;
+    color: var(--ink-soft); padding: 5px 12px; border-radius: 9px; cursor: pointer; white-space: nowrap;
+    transition: color .16s, scale .16s cubic-bezier(.2, 0, 0, 1);
+  }
+  #flowbar button.on { color: #FFF; }
+  /* 图例：虚实两种边是不同语义，不解释等于没编码。无壳居中，纯注记不抢画布 */
+  #legend {
+    position: absolute; left: 50%; transform: translateX(-50%); bottom: 12px; z-index: 4;
+    display: flex; align-items: center; gap: 22px;
+    font: 600 11px var(--sans); color: var(--ink-soft);
+    letter-spacing: .02em; pointer-events: none;
+  }
+  #legend span { display: flex; align-items: center; gap: 7px; }
+  #legend svg { width: 26px; height: 8px; flex-shrink: 0; }
+  @media (max-width: 700px) { #legend { display: none; } }
+  aside {
+    width: var(--asidew);
+    display: flex; flex-direction: column; flex-shrink: 0;
+  }
+  .tabs { position: relative; display: flex; gap: 4px; margin: 10px 12px 0; background: var(--surface); border-radius: 11px; padding: 3px; }
+  .tabs button {
+    position: relative; z-index: 1; flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    font: 600 12.5px var(--sans); padding: 7px 0; border-radius: 8px;
+    background: none; color: var(--ink-soft); border: 1px solid transparent; cursor: pointer;
+    transition: color .16s, scale .16s cubic-bezier(.2, 0, 0, 1);
+  }
+  .tabs button.on { color: var(--ink); }
+  #panel { flex: 1; overflow-y: auto; padding: 16px 20px 30px; }
+  #panel .kicker {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 10.5px; letter-spacing: .15em; color: var(--ink-soft);
+  }
+  #panel h2, .hmodal h2 { font: 700 18px/1.4 var(--serif); margin: 6px 0 12px; text-wrap: balance; }
+  #panel .titlerow { display: flex; align-items: baseline; gap: 10px; justify-content: space-between; }
+  #panel .titlerow h2 { margin-bottom: 10px; }
+  #panel .titlerow .chips { margin: 0; flex-shrink: 0; }
+  #panel h3 { font-size: 11px; letter-spacing: .13em; color: var(--ink-soft); margin: 18px 0 7px; }
+  #panel p { font: 13.5px/1.75 var(--sans); margin-bottom: 11px; }
+  #panel mark { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-deep); padding: 0 4px; border-radius: 4px; font-weight: 700; }
+  #panel ul { list-style: none; padding: 0; }
+  #panel li { font-size: 12px; margin: 4px 0; }
+  #panel li.src { display: flex; align-items: baseline; gap: 6px; }
+  #panel li.src code, #panel .src code { word-break: break-all; }
+  #panel code { font: 11.5px var(--mono); background: var(--surface); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; }
+  #panel .src { cursor: pointer; }
+  #panel .src:hover code { border-color: var(--accent); color: var(--accent-deep); }
+  #panel .steps li.done { color: var(--ink-soft); }
+  #panel .steps li.now { color: var(--accent-deep); font-weight: 700; }
+  #panel .chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0 6px; }
+  #panel .chip {
+    font: 600 11px var(--sans); background: var(--surface); border: 1px solid var(--line);
+    border-radius: 8px; padding: 3px 9px; cursor: pointer;
+  }
+  #panel .chip:hover { border-color: var(--accent); color: var(--accent-deep); }
+  #panel .chip.hchip {
+    background: color-mix(in srgb, var(--warn) 7%, transparent);
+    border-color: color-mix(in srgb, var(--warn) 28%, transparent); color: var(--warn);
+  }
+  #panel .chip.hchip:hover { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+  #panel .dimtext { color: var(--ink-soft); font-size: 12px; }
+  #panel h3 + .dimtext { margin: -4px 0 6px; font-size: 11px; line-height: 1.5; }
+  #panel .flist.collapsed li:nth-child(n+9) { display: none; }
+  #panel li.fi { display: flex; align-items: baseline; gap: 6px; }
+  #panel li.fi .loc {
+    position: relative; flex-shrink: 0; padding-bottom: 5px; width: 46px;
+    font: 11px var(--mono); color: var(--ink-soft); text-align: right; font-variant-numeric: tabular-nums;
+  }
+  /* 行数下的条：相对本清单最大值，扫一眼就知道哪个重。只有成组对比时才画（.bar） */
+  #panel li.fi .loc.bar { padding-bottom: 5px; }
+  #panel li.fi .loc.bar::before {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 1px; height: 3px; border-radius: 2px;
+    background: color-mix(in srgb, var(--ink) 7%, transparent);
+  }
+  #panel li.fi .loc i {
+    position: absolute; right: 0; bottom: 1px; height: 3px; border-radius: 2px;
+    background: color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  #panel li.fi.mod { cursor: pointer; padding: 3px 7px; margin: 0 -7px; border-radius: 8px; transition: background .15s; }
+  #panel li.fi.mod:hover { background: var(--surface); }
+  #panel li.fi.mod .mn { font-size: 12.5px; }
+  #panel li.fi > :nth-child(2) { flex: 1; min-width: 0; }
+  #panel li.fi .sub { font-size: 10.5px; color: var(--ink-soft); flex-shrink: 0; margin-right: 9px; }
+  #panel .steps li {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 5px 8px; margin: 1px -8px; border-radius: 8px;
+    cursor: pointer; transition: background .15s;
+  }
+  #panel .steps li:hover { background: var(--surface); color: var(--accent-deep); }
+  #panel .steps li .no {
+    font: 700 10.5px var(--mono); color: var(--ink-soft); min-width: 15px;
+    font-variant-numeric: tabular-nums; flex-shrink: 0;
+  }
+  #panel .steps li.now .no, #panel .steps li:hover .no { color: var(--accent-deep); }
+  #panel .statrow { display: flex; gap: 7px; margin: 5px 0 9px; }
+  #panel .sv {
+    flex: 1; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 7px 11px; font: 700 15px var(--mono); color: var(--ink); font-variant-numeric: tabular-nums;
+  }
+  #panel .sv em { display: block; font: 400 10.5px var(--sans); font-style: normal; color: var(--ink-soft); margin-top: 1px; }
+  #panel .morebtn {
+    font: 600 11.5px var(--sans); background: var(--surface); border: 1px solid var(--line);
+    border-radius: 8px; padding: 5px 11px; cursor: pointer; color: var(--ink-soft); margin-top: 3px;
+  }
+  #panel .morebtn:hover { border-color: var(--accent); color: var(--accent-deep); }
+  #panel .md-body h1 { font: 700 15px/1.5 var(--serif); margin: 16px 0 8px; }
+  #panel .md-body h2 { font: 700 13px/1.5 var(--sans); letter-spacing: .01em; margin: 20px 0 8px; }
+  #panel .md-body h3, #panel .md-body h4 { font: 700 12px var(--sans); letter-spacing: 0; color: var(--ink); margin: 12px 0 6px; }
+  #panel .md-body pre { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; overflow-x: auto; margin: 0 0 11px; }
+  #panel .md-body pre code { border: none; background: none; padding: 0; font-size: 11px; line-height: 1.6; display: block; }
+  #panel .md-body ul { list-style: disc; padding-left: 18px; margin-bottom: 11px; }
+  #panel .md-body ol { padding-left: 18px; margin-bottom: 11px; }
+  #panel .md-body li { font: 12.5px/1.7 var(--sans); margin: 3px 0; }
+  #panel .md-body table { border-collapse: collapse; margin: 0 0 12px; width: 100%; }
+  #panel .md-body th, #panel .md-body td { border: 1px solid var(--line); padding: 4px 8px; font-size: 11.5px; text-align: left; }
+  #panel .md-body th { background: var(--surface); font-size: 10.5px; letter-spacing: .05em; color: var(--ink-soft); }
+  #panel .md-body tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface) 55%, transparent); }
+  #panel .md-body li::marker { color: var(--accent); }
+  .vitals {
+    display: flex; gap: 14px; align-items: center; margin: 2px 0 16px;
+    background: color-mix(in srgb, var(--hc, var(--ink)) 8%, var(--card));
+    border: 1px solid color-mix(in srgb, var(--hc, var(--ink)) 22%, transparent);
+    border-radius: 14px; padding: 14px;
+  }
+  .gauge { position: relative; width: 84px; height: 84px; flex-shrink: 0; }
+  .gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .gauge circle { fill: none; stroke-width: 8; }
+  .gauge .gbg { stroke: color-mix(in srgb, currentColor 16%, transparent); }
+  .gauge .gfg { stroke: currentColor; stroke-linecap: round; transition: stroke-dashoffset .7s cubic-bezier(.16, 1, .3, 1); }
+  .gscore { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 700 22px var(--mono); color: var(--ink); }
+  .gscore span { font-size: 10px; color: var(--ink-soft); margin: 9px 0 0 1px; }
+  .vmeta { flex: 1; min-width: 0; }
+  .vgrade { font: 700 15px var(--sans); }
+  .vadvice { margin: 2px 0 9px; }
+  .vadvice div { font-size: 11px; line-height: 1.6; color: var(--ink-soft); }
+  .vadvice b { font-weight: 700; }
+  .vstats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .vstat { background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: 5px 3px; text-align: center; cursor: pointer; transition: border-color .15s, scale .16s cubic-bezier(.2, 0, 0, 1); }
+  .vstat:hover { border-color: var(--accent); }
+  .vstat .vv { font: 700 14px var(--mono); color: var(--ink-soft); }
+  .vstat .vv em { font: 600 9.5px var(--sans); font-style: normal; opacity: .85; }
+  .vstat .vk { font-size: 10px; color: var(--ink-soft); margin-top: 1px; }
+  .hmodal .md-body { font: 12.5px/1.75 var(--sans); }
+  .hmodal .md-body h2 { font: 700 13px/1.5 var(--sans); margin: 20px 0 8px; }
+  .hmodal .md-body h3 { font: 700 12px var(--sans); margin: 14px 0 6px; }
+  .hmodal .md-body p, .hmodal .md-body li { font-size: 12.5px; }
+  .hmodal .md-body ul { list-style: disc; padding-left: 18px; margin-bottom: 11px; }
+  .hmodal .md-body li { margin: 3px 0; }
+  .hmodal .md-body li::marker { color: var(--accent); }
+  .hmodal .md-body code { font: 11.5px var(--mono); background: var(--surface); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; }
+  .hmodal .md-body table { border-collapse: collapse; width: 100%; margin: 0 0 12px; }
+  .hmodal .md-body th, .hmodal .md-body td { border: 1px solid var(--line); padding: 5px 9px; font-size: 11.5px; text-align: left; }
+  .hmodal .md-body th { background: var(--surface); font-size: 10.5px; letter-spacing: .05em; color: var(--ink-soft); }
+  .hmodal .md-body tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface) 55%, transparent); }
+  .dt { transition: opacity .18s; }
+  .dt.dim { opacity: .13; }
+  @media (prefers-reduced-motion: reduce) {
+    .gauge .gfg { transition: none; }
+    dialog#healthDlg[open] .hmodal { animation: none; }
+  }
+  #panel .md-body blockquote { border-left: 3px solid var(--accent); padding: 2px 10px; color: var(--ink-soft); margin: 0 0 11px; }
+  #panel .md-body a { color: var(--accent-deep); }
+  #panel .md-body hr { border: none; border-top: 1px solid var(--line); margin: 12px 0; }
+  #panel .wl { cursor: pointer; text-decoration: underline dotted; }
+  .b, .lk { transition: opacity .18s, transform .2s ease; cursor: pointer; }
+  .dfloor { cursor: pointer; }
+  .dfloor polygon { transition: fill .18s, stroke-width .18s; }
+  .dfloor.sel polygon { stroke-dasharray: none; stroke-width: 2.4; }
+  nav .grp.sel { outline: 1.5px solid currentColor; outline-offset: -1.5px; }
+  .hbadge { cursor: pointer; }
+  .hbadge .ring { transition: r .15s ease-out; }
+  .hbadge:hover .ring { r: 8.5; }
+  .b.dim, .lk.dim { opacity: .13; }
+  /* 聚焦时结构边要真的亮起来：细虚线本身就淡，只靠不压暗看不出区别 */
+  #svg g.lk.hi > path:first-child { opacity: 1; stroke-width: 1.7; stroke: var(--ink); }
+  #svg g.b:not([data-plate]):hover { transform: translateY(-3px); }
+  #svg g.b.hop { animation: hop .5s ease; }
+  @keyframes hop { 30% { transform: translateY(-7px); } 60% { transform: translateY(-1px); } }
+  #selring { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  @media (prefers-reduced-motion: reduce) {
+    #selring, #svg g.b.hop { animation: none; }
+    #svg g.b:not([data-plate]):hover { transform: none; }
+    nav, aside, .handle, .isw .ic, .seg-ind { transition: none; }
+  }
+  /* 窄屏：两栏转为固定抽屉，把手停靠屏幕边缘 */
+  @media (max-width: 1080px) {
+    nav {
+      position: fixed; left: 0; top: 0; bottom: 0; z-index: 20; margin: 0;
+      width: min(78vw, 320px); border-radius: 0 16px 16px 0;
+      box-shadow: 10px 0 34px rgba(20, 20, 19, .18);
+      transition: transform .26s cubic-bezier(.2, 0, 0, 1);
+    }
+    body.nav-off nav { margin: 0; opacity: 1; transform: translateX(calc(-100% - 40px)); }
+    #handleNav { left: calc(min(78vw, 320px) - 1px); }
+    body.nav-off #handleNav { left: 0; }
+  }
+  @media (max-width: 820px) {
+    #asideResize { display: none; }
+    aside {
+      position: fixed; right: 0; top: 0; bottom: 0; z-index: 20; margin: 0;
+      width: min(88vw, 360px); border-radius: 16px 0 0 16px;
+      box-shadow: -10px 0 34px rgba(20, 20, 19, .18);
+      transition: transform .26s cubic-bezier(.2, 0, 0, 1);
+    }
+    body.aside-off aside { margin: 0; opacity: 1; transform: translateX(calc(100% + 40px)); }
+    #handleAside { right: calc(min(88vw, 360px) - 1px); }
+    body.aside-off #handleAside { right: 0; }
+  }
+  @media (max-width: 700px) {
+    .statbar { display: none; }
+    header { gap: 6px; }
+    header button.compact .lb { display: none; }
+    header button.compact { padding: 7px 9px; }
+    .vstats { grid-template-columns: repeat(2, 1fr); }
+    .hmodal { padding: 16px 16px 22px; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+<defs id="icondefs">
+<!-- Icons: Phosphor Icons regular weight, MIT License (c) 2023 Phosphor Icons.
+     Source: https://github.com/phosphor-icons/core/tree/main/raw/regular
+     Modified: stroke-width 16 -> 20 for legibility at 11-13px. -->
+<symbol id="ic-globe" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><circle cx="128" cy="128" r="96"/><path d="M168,128c0,64-40,96-40,96s-40-32-40-96,40-96,40-96S168,64,168,128Z"/><line x1="37.46" y1="96" x2="218.54" y2="96"/><line x1="37.46" y1="160" x2="218.54" y2="160"/></symbol>
+<symbol id="ic-sliders" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><line x1="128" y1="120" x2="128" y2="216"/><line x1="128" y1="40" x2="128" y2="88"/><line x1="200" y1="200" x2="200" y2="216"/><line x1="200" y1="40" x2="200" y2="168"/><line x1="224" y1="168" x2="176" y2="168"/><line x1="56" y1="168" x2="56" y2="216"/><line x1="56" y1="40" x2="56" y2="136"/><line x1="32" y1="136" x2="80" y2="136"/><line x1="152" y1="88" x2="104" y2="88"/></symbol>
+<symbol id="ic-gateway" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><polyline points="176 144 208 176 176 208"/><line x1="48" y1="176" x2="208" y2="176"/><polyline points="80 112 48 80 80 48"/><line x1="208" y1="80" x2="48" y2="80"/></symbol>
+<symbol id="ic-lock" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><rect x="40" y="88" width="176" height="128" rx="8"/><path d="M88,88V56a40,40,0,0,1,80,0V88"/></symbol>
+<symbol id="ic-user" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><circle cx="128" cy="96" r="64"/><path d="M32,216c19.37-33.47,54.55-56,96-56s76.63,22.53,96,56"/></symbol>
+<symbol id="ic-card" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><rect x="24" y="56" width="208" height="144" rx="8"/><line x1="168" y1="168" x2="200" y2="168"/><line x1="120" y1="168" x2="136" y2="168"/><line x1="24" y1="96" x2="232" y2="96"/></symbol>
+<symbol id="ic-calendar" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><rect x="40" y="40" width="176" height="176" rx="8"/><line x1="176" y1="24" x2="176" y2="56"/><line x1="80" y1="24" x2="80" y2="56"/><line x1="40" y1="88" x2="216" y2="88"/></symbol>
+<symbol id="ic-target" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><line x1="128" y1="128" x2="224" y2="32"/><path d="M195.88,60.12a95.88,95.88,0,1,0,18.77,26.49"/><path d="M161.94,94.06a48,48,0,1,0,14,31.2"/></symbol>
+<symbol id="ic-shield" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><path d="M216,112V56a8,8,0,0,0-8-8H48a8,8,0,0,0-8,8v56c0,96,88,120,88,120S216,208,216,112Z"/></symbol>
+<symbol id="ic-cube" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><polyline points="32.7 76.92 128 129.08 223.3 76.92"/><path d="M131.84,25l88,48.18a8,8,0,0,1,4.16,7v95.64a8,8,0,0,1-4.16,7l-88,48.18a8,8,0,0,1-7.68,0l-88-48.18a8,8,0,0,1-4.16-7V80.18a8,8,0,0,1,4.16-7l88-48.18A8,8,0,0,1,131.84,25Z"/><line x1="128" y1="129.09" x2="128" y2="232"/></symbol>
+<symbol id="ic-coin" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><ellipse cx="96" cy="84" rx="80" ry="36"/><path d="M16,84v40c0,19.88,35.82,36,80,36s80-16.12,80-36V84"/><line x1="64" y1="117" x2="64" y2="157"/><path d="M176,96.72c36.52,3.34,64,17.86,64,35.28,0,19.88-35.82,36-80,36-19.6,0-37.56-3.17-51.47-8.44"/><path d="M80,159.28V172c0,19.88,35.82,36,80,36s80-16.12,80-36V132"/><line x1="192" y1="165" x2="192" y2="205"/><line x1="128" y1="117" x2="128" y2="205"/></symbol>
+<symbol id="ic-book" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><path d="M128,88a32,32,0,0,1,32-32h72V200H160a32,32,0,0,0-32,32"/><path d="M24,200H96a32,32,0,0,1,32,32V88A32,32,0,0,0,96,56H24Z"/></symbol>
+<symbol id="ic-bridge" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><line x1="64" y1="56" x2="64" y2="200"/><line x1="192" y1="56" x2="192" y2="200"/><path d="M24,115.35A64,64,0,0,0,64,56a64,64,0,0,0,128,0,64,64,0,0,0,40,59.35"/><line x1="152" y1="115.35" x2="152" y2="168"/><line x1="104" y1="115.35" x2="104" y2="168"/><line x1="24" y1="168" x2="232" y2="168"/></symbol>
+<symbol id="ic-grid" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><rect x="48" y="48" width="64" height="64" rx="8"/><rect x="144" y="48" width="64" height="64" rx="8"/><rect x="48" y="144" width="64" height="64" rx="8"/><rect x="144" y="144" width="64" height="64" rx="8"/></symbol>
+<symbol id="ic-users" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><circle cx="84" cy="108" r="52"/><path d="M10.23,200a88,88,0,0,1,147.54,0"/><path d="M172,160a87.93,87.93,0,0,1,73.77,40"/><path d="M152.69,59.7A52,52,0,1,1,172,160"/></symbol>
+<symbol id="ic-chat" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><path d="M79.93,211.11a96,96,0,1,0-35-35h0L32.42,213.46a8,8,0,0,0,10.12,10.12l37.39-12.47Z"/></symbol>
+<symbol id="ic-layers" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><polyline points="32 176 128 232 224 176"/><polyline points="32 128 128 184 224 128"/><polygon points="32 80 128 136 224 80 128 24 32 80"/></symbol>
+<symbol id="ic-file" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><path d="M200,224H56a8,8,0,0,1-8-8V40a8,8,0,0,1,8-8h96l56,56V216A8,8,0,0,1,200,224Z"/><polyline points="152 32 152 88 208 88"/></symbol>
+<symbol id="ic-cpu" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><rect x="104" y="104" width="48" height="48"/><rect x="48" y="48" width="160" height="160" rx="8"/><line x1="208" y1="104" x2="232" y2="104"/><line x1="208" y1="152" x2="232" y2="152"/><line x1="24" y1="104" x2="48" y2="104"/><line x1="24" y1="152" x2="48" y2="152"/><line x1="152" y1="208" x2="152" y2="232"/><line x1="104" y1="208" x2="104" y2="232"/><line x1="152" y1="24" x2="152" y2="48"/><line x1="104" y1="24" x2="104" y2="48"/></symbol>
+<symbol id="ic-server" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><rect x="40" y="144" width="176" height="64" rx="8"/><rect x="40" y="48" width="176" height="64" rx="8"/><circle cx="180" cy="80" r="12"/><circle cx="180" cy="176" r="12"/></symbol>
+<symbol id="ic-wrench" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><path d="M104,126.94a64,64,0,0,1,80-90.29L144,80l5.66,26.34L176,112l43.35-40a64,64,0,0,1-90.29,80L73,217A24,24,0,0,1,39,183Z"/></symbol>
+<symbol id="ic-plug" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><line x1="144" y1="64" x2="184" y2="24"/><line x1="232" y1="72" x2="192" y2="112"/><line x1="224" y1="144" x2="112" y2="32"/><path d="M212,132l-58.63,58.63a32,32,0,0,1-45.25,0L65.37,147.88a32,32,0,0,1,0-45.25L124,44"/><line x1="86.75" y1="169.25" x2="32" y2="224"/></symbol>
+<symbol id="ic-db" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><ellipse cx="128" cy="80" rx="88" ry="48"/><path d="M40,80v48c0,26.51,39.4,48,88,48s88-21.49,88-48V80"/><path d="M40,128v48c0,26.51,39.4,48,88,48s88-21.49,88-48V128"/></symbol>
+<symbol id="ic-bolt" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><polygon points="160 16 144 96 208 120 96 240 112 160 48 136 160 16"/></symbol>
+<symbol id="ic-folder" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><path d="M216.89,208H39.38A7.4,7.4,0,0,1,32,200.62V80H216a8,8,0,0,1,8,8V200.89A7.11,7.11,0,0,1,216.89,208Z"/><path d="M32,80V56a8,8,0,0,1,8-8H92.69a8,8,0,0,1,5.65,2.34L128,80"/></symbol>
+<symbol id="ic-sparkle" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><path d="M84.27,171.73l-55.09-20.3a7.92,7.92,0,0,1,0-14.86l55.09-20.3,20.3-55.09a7.92,7.92,0,0,1,14.86,0l20.3,55.09,55.09,20.3a7.92,7.92,0,0,1,0,14.86l-55.09,20.3-20.3,55.09a7.92,7.92,0,0,1-14.86,0Z"/><line x1="176" y1="16" x2="176" y2="64"/><line x1="224" y1="72" x2="224" y2="104"/><line x1="152" y1="40" x2="200" y2="40"/><line x1="208" y1="88" x2="240" y2="88"/></symbol>
+<symbol id="ic-bell" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><path d="M96,192a32,32,0,0,0,64,0"/><path d="M56,104a72,72,0,0,1,144,0c0,35.82,8.3,64.6,14.9,76A8,8,0,0,1,208,192H48a8,8,0,0,1-6.88-12C47.71,168.6,56,139.81,56,104Z"/></symbol>
+<symbol id="ic-play" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><path d="M72,39.88V216.12a8,8,0,0,0,12.15,6.69l144.08-88.12a7.82,7.82,0,0,0,0-13.38L84.15,33.19A8,8,0,0,0,72,39.88Z"/></symbol>
+<symbol id="ic-stepfwd" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><line x1="216" y1="40" x2="216" y2="216"/><line x1="32" y1="128" x2="168" y2="128"/><polyline points="104 64 168 128 104 192"/></symbol>
+<symbol id="ic-reset" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><polyline points="24 56 24 104 72 104"/><path d="M67.59,192A88,88,0,1,0,65.77,65.77L24,104"/></symbol>
+<symbol id="ic-doc" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><path d="M200,224H56a8,8,0,0,1-8-8V40a8,8,0,0,1,8-8h96l56,56V216A8,8,0,0,1,200,224Z"/><polyline points="152 32 152 88 208 88"/><line x1="96" y1="136" x2="160" y2="136"/><line x1="96" y1="168" x2="160" y2="168"/></symbol>
+<symbol id="ic-chevron" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><polyline points="160 208 80 128 160 48"/></symbol>
+<symbol id="ic-x" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><line x1="200" y1="56" x2="56" y2="200"/><line x1="200" y1="200" x2="56" y2="56"/></symbol>
+<symbol id="ic-search" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"><circle cx="112" cy="112" r="80"/><line x1="168.57" y1="168.57" x2="224" y2="224"/></symbol>
+<symbol id="ic-globe-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M128,24h0A104,104,0,1,0,232,128,104.12,104.12,0,0,0,128,24Zm78.36,64H170.71a135.28,135.28,0,0,0-22.3-45.6A88.29,88.29,0,0,1,206.37,88ZM216,128a87.61,87.61,0,0,1-3.33,24H174.16a157.44,157.44,0,0,0,0-48h38.51A87.61,87.61,0,0,1,216,128ZM128,43a115.27,115.27,0,0,1,26,45H102A115.11,115.11,0,0,1,128,43ZM102,168H154a115.11,115.11,0,0,1-26,45A115.27,115.27,0,0,1,102,168Zm-3.9-16a140.84,140.84,0,0,1,0-48h59.88a140.84,140.84,0,0,1,0,48Zm50.35,61.6a135.28,135.28,0,0,0,22.3-45.6h35.66A88.29,88.29,0,0,1,148.41,213.6Z"/></symbol>
+<symbol id="ic-sliders-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M136,120v96a8,8,0,0,1-16,0V120a8,8,0,0,1,16,0Zm64,72a8,8,0,0,0-8,8v16a8,8,0,0,0,16,0V200A8,8,0,0,0,200,192Zm24-48H208V40a8,8,0,0,0-16,0V144H176a8,8,0,0,0-8,8v16a8,8,0,0,0,8,8h48a8,8,0,0,0,8-8V152A8,8,0,0,0,224,144ZM56,160a8,8,0,0,0-8,8v48a8,8,0,0,0,16,0V168A8,8,0,0,0,56,160Zm24-48H64V40a8,8,0,0,0-16,0v72H32a8,8,0,0,0-8,8v16a8,8,0,0,0,8,8H80a8,8,0,0,0,8-8V120A8,8,0,0,0,80,112Zm72-48H136V40a8,8,0,0,0-16,0V64H104a8,8,0,0,0-8,8V88a8,8,0,0,0,8,8h48a8,8,0,0,0,8-8V72A8,8,0,0,0,152,64Z"/></symbol>
+<symbol id="ic-gateway-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M213.66,181.66l-32,32A8,8,0,0,1,168,208V184H48a8,8,0,0,1,0-16H168V144a8,8,0,0,1,13.66-5.66l32,32A8,8,0,0,1,213.66,181.66Zm-139.32-64A8,8,0,0,0,88,112V88H208a8,8,0,0,0,0-16H88V48a8,8,0,0,0-13.66-5.66l-32,32a8,8,0,0,0,0,11.32Z"/></symbol>
+<symbol id="ic-lock-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96Z"/></symbol>
+<symbol id="ic-user-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M230.93,220a8,8,0,0,1-6.93,4H32a8,8,0,0,1-6.92-12c15.23-26.33,38.7-45.21,66.09-54.16a72,72,0,1,1,73.66,0c27.39,8.95,50.86,27.83,66.09,54.16A8,8,0,0,1,230.93,220Z"/></symbol>
+<symbol id="ic-card-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M224,48H32A16,16,0,0,0,16,64V192a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V64A16,16,0,0,0,224,48ZM136,176H120a8,8,0,0,1,0-16h16a8,8,0,0,1,0,16Zm64,0H168a8,8,0,0,1,0-16h32a8,8,0,0,1,0,16ZM32,88V64H224V88Z"/></symbol>
+<symbol id="ic-calendar-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,48H48V48H72v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24Z"/></symbol>
+<symbol id="ic-target-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M211.2,79.39a8,8,0,0,0-3.77,10.67A88.09,88.09,0,1,1,184.3,60.39L161.53,83.16A56,56,0,0,0,88.4,167.59h0a56,56,0,0,0,95.5-42.79,8,8,0,1,0-16,.9,40,40,0,0,1-62,35.67l23.95-23.95L167.6,99.72h0l62.06-62a8,8,0,0,0-11.32-11.32L195.67,49A104,104,0,0,0,54.46,201.54,104,104,0,0,0,221.87,83.16,8,8,0,0,0,211.2,79.39Z"/></symbol>
+<symbol id="ic-shield-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M224,56v56c0,52.72-25.52,84.67-46.93,102.19-23.06,18.86-46,25.27-47,25.53a8,8,0,0,1-4.2,0c-1-.26-23.91-6.67-47-25.53C57.52,196.67,32,164.72,32,112V56A16,16,0,0,1,48,40H208A16,16,0,0,1,224,56Z"/></symbol>
+<symbol id="ic-cube-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M223.68,66.15,135.68,18a15.88,15.88,0,0,0-15.36,0l-88,48.17a16,16,0,0,0-8.32,14v95.64a16,16,0,0,0,8.32,14l88,48.17a15.88,15.88,0,0,0,15.36,0l88-48.17a16,16,0,0,0,8.32-14V80.18A16,16,0,0,0,223.68,66.15ZM128,120,47.65,76,128,32l80.35,44Zm8,99.64V133.83l80-43.78v85.76Z"/></symbol>
+<symbol id="ic-coin-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M184,89.57V84c0-25.08-37.83-44-88-44S8,58.92,8,84v40c0,20.89,26.25,37.49,64,42.46V172c0,25.08,37.83,44,88,44s88-18.92,88-44V132C248,111.3,222.58,94.68,184,89.57ZM56,146.87C36.41,141.4,24,132.39,24,124V109.93c8.16,5.78,19.09,10.44,32,13.57Zm80-23.37c12.91-3.13,23.84-7.79,32-13.57V124c0,8.39-12.41,17.4-32,22.87Zm-16,71.37C100.41,189.4,88,180.39,88,172v-4.17c2.63.1,5.29.17,8,.17,3.88,0,7.67-.13,11.39-.35A121.92,121.92,0,0,0,120,171.41Zm0-44.62A163,163,0,0,1,96,152a163,163,0,0,1-24-1.75V126.46A183.74,183.74,0,0,0,96,128a183.74,183.74,0,0,0,24-1.54Zm64,48a165.45,165.45,0,0,1-48,0V174.4a179.48,179.48,0,0,0,24,1.6,183.74,183.74,0,0,0,24-1.54ZM232,172c0,8.39-12.41,17.4-32,22.87V171.5c12.91-3.13,23.84-7.79,32-13.57Z"/></symbol>
+<symbol id="ic-book-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M240,56V200a8,8,0,0,1-8,8H160a24,24,0,0,0-24,23.94,7.9,7.9,0,0,1-5.12,7.55A8,8,0,0,1,120,232a24,24,0,0,0-24-24H24a8,8,0,0,1-8-8V56a8,8,0,0,1,8-8H88a32,32,0,0,1,32,32v87.73a8.17,8.17,0,0,0,7.47,8.25,8,8,0,0,0,8.53-8V80a32,32,0,0,1,32-32h64A8,8,0,0,1,240,56Z"/></symbol>
+<symbol id="ic-bridge-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M232,160h-8V120.5c1.63.81,3.29,1.57,5,2.26a8,8,0,0,0,6-14.83A55.78,55.78,0,0,1,200,56a8,8,0,0,0-16,0A56,56,0,0,1,72,56a8,8,0,0,0-16,0,55.78,55.78,0,0,1-35,51.93,8,8,0,0,0,6,14.83c1.71-.69,3.37-1.45,5-2.26V160H24.6c-6.31,0-8.6,4.78-8.6,8a8,8,0,0,0,8,8H56v24a8,8,0,0,0,16,0V176H184v24a8,8,0,0,0,16,0V176h32a8,8,0,0,0,0-16ZM72,152a8,8,0,0,1-16,0V104.12a8,8,0,0,1,16,0Zm40,0a8,8,0,0,1-16,0V132.32a8,8,0,0,1,16,0Zm48,0a8,8,0,0,1-16,0V132.32a8,8,0,0,1,16,0Zm40,0a8,8,0,0,1-16,0V104.12a8,8,0,0,1,16,0Z"/></symbol>
+<symbol id="ic-grid-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M120,56v48a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V56A16,16,0,0,1,56,40h48A16,16,0,0,1,120,56Zm80-16H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm-96,96H56a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,104,136Zm96,0H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,200,136Z"/></symbol>
+<symbol id="ic-users-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M164.47,195.63a8,8,0,0,1-6.7,12.37H10.23a8,8,0,0,1-6.7-12.37,95.83,95.83,0,0,1,47.22-37.71,60,60,0,1,1,66.5,0A95.83,95.83,0,0,1,164.47,195.63Zm87.91-.15a95.87,95.87,0,0,0-47.13-37.56A60,60,0,0,0,144.7,54.59a4,4,0,0,0-1.33,6A75.83,75.83,0,0,1,147,150.53a4,4,0,0,0,1.07,5.53,112.32,112.32,0,0,1,29.85,30.83,23.92,23.92,0,0,1,3.65,16.47,4,4,0,0,0,3.95,4.64h60.3a8,8,0,0,0,7.73-5.93A8.22,8.22,0,0,0,252.38,195.48Z"/></symbol>
+<symbol id="ic-chat-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M232,128A104,104,0,0,1,79.12,219.82L45.07,231.17a16,16,0,0,1-20.24-20.24l11.35-34.05A104,104,0,1,1,232,128Z"/></symbol>
+<symbol id="ic-layers-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M220,169.09l-92,53.65L36,169.09A8,8,0,0,0,28,182.91l96,56a8,8,0,0,0,8.06,0l96-56A8,8,0,1,0,220,169.09Z"/><path d="M220,121.09l-92,53.65L36,121.09A8,8,0,0,0,28,134.91l96,56a8,8,0,0,0,8.06,0l96-56A8,8,0,1,0,220,121.09Z"/><path d="M28,86.91l96,56a8,8,0,0,0,8.06,0l96-56a8,8,0,0,0,0-13.82l-96-56a8,8,0,0,0-8.06,0l-96,56a8,8,0,0,0,0,13.82Z"/></symbol>
+<symbol id="ic-file-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM152,88V44l44,44Z"/></symbol>
+<symbol id="ic-cpu-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M104,104h48v48H104Zm136,48a8,8,0,0,1-8,8H216v40a16,16,0,0,1-16,16H160v16a8,8,0,0,1-16,0V216H112v16a8,8,0,0,1-16,0V216H56a16,16,0,0,1-16-16V160H24a8,8,0,0,1,0-16H40V112H24a8,8,0,0,1,0-16H40V56A16,16,0,0,1,56,40H96V24a8,8,0,0,1,16,0V40h32V24a8,8,0,0,1,16,0V40h40a16,16,0,0,1,16,16V96h16a8,8,0,0,1,0,16H216v32h16A8,8,0,0,1,240,152ZM168,96a8,8,0,0,0-8-8H96a8,8,0,0,0-8,8v64a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8Z"/></symbol>
+<symbol id="ic-server-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M208,40H48A16,16,0,0,0,32,56v48a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V56A16,16,0,0,0,208,40ZM180,92a12,12,0,1,1,12-12A12,12,0,0,1,180,92Z"/><path d="M208,136H48a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V152A16,16,0,0,0,208,136Zm-28,52a12,12,0,1,1,12-12A12,12,0,0,1,180,188Z"/></symbol>
+<symbol id="ic-wrench-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M232,96a72,72,0,0,1-100.94,66L79,222.22c-.12.14-.26.29-.39.42a32,32,0,0,1-45.26-45.26c.14-.13.28-.27.43-.39L94,124.94a72.07,72.07,0,0,1,83.54-98.78,8,8,0,0,1,3.93,13.19L144,80l5.66,26.35L176,112l40.65-37.52a8,8,0,0,1,13.19,3.93A72.6,72.6,0,0,1,232,96Z"/></symbol>
+<symbol id="ic-plug-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M237.66,77.66,203.31,112l26.35,26.34a8,8,0,0,1-11.32,11.32L212,143.31l-53,53a40,40,0,0,1-56.57,0L86.75,180.57,37.66,229.66a8,8,0,0,1-11.32-11.32l49.09-49.09L59.72,153.54a40,40,0,0,1,0-56.57l53-53-6.35-6.34a8,8,0,0,1,11.32-11.32L144,52.69l34.34-34.35a8,8,0,1,1,11.32,11.32L155.31,64,192,100.69l34.34-34.35a8,8,0,0,1,11.32,11.32Z"/></symbol>
+<symbol id="ic-db-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M128,24C74.17,24,32,48.6,32,80v96c0,31.4,42.17,56,96,56s96-24.6,96-56V80C224,48.6,181.83,24,128,24Zm80,104c0,9.62-7.88,19.43-21.61,26.92C170.93,163.35,150.19,168,128,168s-42.93-4.65-58.39-13.08C55.88,147.43,48,137.62,48,128V111.36c17.06,15,46.23,24.64,80,24.64s62.94-9.68,80-24.64Zm-21.61,74.92C170.93,211.35,150.19,216,128,216s-42.93-4.65-58.39-13.08C55.88,195.43,48,185.62,48,176V159.36c17.06,15,46.23,24.64,80,24.64s62.94-9.68,80-24.64V176C208,185.62,200.12,195.43,186.39,202.92Z"/></symbol>
+<symbol id="ic-bolt-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M213.85,125.46l-112,120a8,8,0,0,1-13.69-7l14.66-73.33L45.19,143.49a8,8,0,0,1-3-13l112-120a8,8,0,0,1,13.69,7L153.18,90.9l57.63,21.61a8,8,0,0,1,3,12.95Z"/></symbol>
+<symbol id="ic-folder-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M216,72H131.31L104,44.69A15.88,15.88,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.41,15.41,0,0,0,39.39,216h177.5A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40Z"/></symbol>
+<symbol id="ic-sparkle-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M208,144a15.78,15.78,0,0,1-10.42,14.94L146,178l-19,51.62a15.92,15.92,0,0,1-29.88,0L78,178l-51.62-19a15.92,15.92,0,0,1,0-29.88L78,110l19-51.62a15.92,15.92,0,0,1,29.88,0L146,110l51.62,19A15.78,15.78,0,0,1,208,144ZM152,48h16V64a8,8,0,0,0,16,0V48h16a8,8,0,0,0,0-16H184V16a8,8,0,0,0-16,0V32H152a8,8,0,0,0,0,16Zm88,32h-8V72a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0V96h8a8,8,0,0,0,0-16Z"/></symbol>
+<symbol id="ic-bell-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216Z"/></symbol>
+<symbol id="ic-doc-fill" viewBox="0 0 256 256" fill="currentColor"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,176H96a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Zm0-32H96a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Zm-8-56V44l44,44Z"/></symbol>
+</defs>
+</svg>
+<header id="hdr"></header>
+<main>
+  <nav id="nav"></nav>
+  <div id="stage"><div id="flowbar" hidden></div><svg id="svg" aria-label="等距系统地图"></svg>
+    <div id="legend">
+      <span><svg viewBox="0 0 26 8"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--ink-soft)" stroke-width="1.6" stroke-dasharray="3 3.5"/></svg>结构依赖</span>
+      <span><svg viewBox="0 0 26 8"><line x1="1" y1="4" x2="19" y2="4" stroke="var(--ink)" stroke-width="2"/><path d="M19 1.7 25 4 19 6.3Z" fill="var(--ink)"/></svg>运行流</span>
+    </div>
+  </div>
+  <aside>
+    <div class="tabs">
+      <button id="tabPage" class="on"><span class="isw" style="width:13px;height:13px"><svg class="ic io"><use href="#ic-doc"/></svg><svg class="ic if"><use href="#ic-doc-fill"/></svg></span>介绍</button>
+      <button id="tabRel"><span class="isw" style="width:13px;height:13px"><svg class="ic io"><use href="#ic-gateway"/></svg><svg class="ic if"><use href="#ic-gateway-fill"/></svg></span>关系</button>
+    </div>
+    <div id="panel"></div>
+  </aside>
+  <button id="handleNav" class="handle"><svg class="ic"><use href="#ic-chevron"/></svg></button>
+  <button id="handleAside" class="handle"><svg class="ic"><use href="#ic-chevron"/></svg></button>
+  <div id="asideResize" title="拖动调宽"></div>
+</main>
+<dialog id="healthDlg"><div class="hmodal" id="healthBody"></div></dialog>
+<script>
+const DATA = __ARCH_DATA__;
+const FLOWS = DATA.flows || [];
+const WIKI = DATA.wiki || {};
+let activeFlow = -1;   // -1 = 总览：只画结构边，不画场景箭头
+
+const ic = (name, s = 13) => `<svg class="ic" style="width:${s}px;height:${s}px"><use href="#ic-${name}"/></svg>`;
+
+/* 体检评分：公式固化在模板，agent 只提供工具产出的计数（DATA.health）。
+   死文件/死导出按每百源文件密度扣分（大小仓库同尺）；循环与断裂按绝对条数扣（应恒为零）；疑似未确认，低权。
+   分级：≥90 健康（绿），75–89 尚可（金），60–74 亚健康（橙），<60 高危（红）。 */
+const HEALTH_GRADES = [[90, "健康", "var(--accent)"], [75, "尚可", "#B08F4C"], [60, "亚健康", "#C9704A"], [0, "高危", "var(--warn)"]];
+function healthScore() {
+  const h = DATA.health;
+  if (!h) return null;
+  const n = h.files || 100;
+  const cuts = [
+    [Math.min(25, (h.dead ?? 0) / n * 500), `清理 ${h.dead} 个死文件`],
+    [Math.min(15, (h.deadExports ?? 0) / n * 8), `删除 ${h.deadExports} 个未用导出`],
+    [Math.min(25, (h.cycles ?? 0) * 6), `拆开 ${h.cycles} 条循环依赖`],
+    [Math.min(25, (h.breaks ?? 0) * 8), `修复 ${h.breaks} 处断裂引用`],
+    [Math.min(5, (h.suspects ?? 0) * .5), `逐一确认 ${h.suspects} 个疑似死文件`],
+  ];
+  const score = Math.max(0, Math.round(100 - cuts.reduce((s, [c]) => s + c, 0)));
+  const [, grade, color] = HEALTH_GRADES.find(([t]) => score >= t);
+  return { score, grade, color, cuts };
+}
+const HS = healthScore();   // 全局健康分：按钮与体检卡共用，无 health 数据时为 null
+const icSwap = (name, s = 13) => `<span class="isw" style="width:${s}px;height:${s}px">` +
+  `<svg class="ic io" style="width:${s}px;height:${s}px"><use href="#ic-${name}"/></svg>` +
+  `<svg class="ic if" style="width:${s}px;height:${s}px"><use href="#ic-${name}-fill"/></svg></span>`;
+
+/* ── 分区色（Anthropic 风暖调低饱和）── */
+const TINTS = ["#3E7A5E", "#C9704A", "#557FA8", "#9A6FB4", "#B08F4C", "#BE5560"];
+const tintOf = {};
+DATA.districts.forEach((d, i) => tintOf[d.id] = d.tint || TINTS[i % TINTS.length]);
+const mix = (c, pct, base) => `color-mix(in srgb, ${c} ${pct}%, ${base})`;
+
+/* ── header ── */
+const STAT_ICONS = [["语言", "globe"], ["行数", "file"], ["文件", "folder"], ["模块", "cube"], ["入口", "gateway"], ["场景", "play"], ["外部", "plug"], ["依赖", "plug"], ["页", "book"], ["服务", "server"], ["测试", "shield"]];
+const statIcon = k => (STAT_ICONS.find(([p]) => k.includes(p)) || [0, "sparkle"])[1];
+document.getElementById("hdr").innerHTML =
+  `<div class="brand">${DATA.meta.logo || ""}<div class="v">${DATA.meta.title}</div></div>` +
+  `<div class="statbar">` + DATA.meta.stats.map(([k, v, tip]) =>
+    `<div class="stat"${tip ? ` title="${tip}"` : ""}>${ic(statIcon(k), 12)}<span class="k">${k}</span><span class="v">${v}</span></div>`
+  ).join(`<span class="sep"></span>`) + `</div>` +
+  // 体检入口紧跟统计条，分级色与分数直接上按钮，不点开也知道健康度
+  (WIKI["health.md"]
+    ? `<button id="btnHealth" class="vitals-btn compact" title="体检报告"${HS ? ` style="--hc:${HS.color}"` : ""}>${ic("shield")}<span class="lb">体检报告</span>${HS ? `<span class="score">${HS.score}</span>` : ""}</button>`
+    : "") +
+  `<div class="spacer"></div>
+   <div class="ops">
+     <button id="btnPlay" class="primary">${ic("play")}<span class="lb">播放</span></button>
+     <button id="btnStep" class="compact" title="单步">${ic("stepfwd")}<span class="lb">单步</span></button>
+     <button id="btnReset" class="compact" title="重置取景">${ic("reset")}<span class="lb">重置</span></button>
+   </div>`;
+/* favicon 从 logo 派生，不另设字段：img 复用其 data URI，内联 SVG 序列化成 data URI（补 xmlns） */
+if (DATA.meta.logo) {
+  const img = DATA.meta.logo.match(/src="(data:[^"]+)"/);
+  const svg = DATA.meta.logo.startsWith("<svg")
+    ? "data:image/svg+xml," + encodeURIComponent(
+        DATA.meta.logo.includes("xmlns") ? DATA.meta.logo : DATA.meta.logo.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"'))
+    : null;
+  const href = img ? img[1] : svg;
+  if (href) {
+    const l = document.createElement("link");
+    l.rel = "icon"; l.href = href;
+    document.head.appendChild(l);
+  }
+}
+
+/* ── 数据索引 ── */
+const N = {}; DATA.nodes.forEach(n => { n.w ??= 1.1; n.d ??= 1.1; n.h ??= 0.8; N[n.code] = n; });
+const HEALTH_SECTIONS = { dead: "死代码", cycles: "循环依赖", hotspot: "高危热点", breaks: "断点" };
+const healthTip = n => "体检：" + n.health.map(h => HEALTH_SECTIONS[h] || h).join("、");
+const DIST = {}; DATA.districts.forEach(d => DIST[d.id] = d);
+const adj = {};
+const addAdj = (a, b) => { (adj[a] ??= new Set()).add(b); (adj[b] ??= new Set()).add(a); };
+DATA.links.forEach(l => addAdj(l.from, l.to));
+FLOWS.forEach(f => f.steps.forEach(s => addAdj(s.from, s.to)));
+
+/* ── 迷你 Markdown 渲染（零依赖，覆盖 wiki 页常用子集）── */
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function inline(s) {
+  s = esc(s);
+  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, t, u) =>
+    /\.md(#|$)/.test(u) && !/^https?:/.test(u)
+      ? `<a class="wl" data-href="${u}">${t}</a>`
+      : `<a href="${u}" target="_blank" rel="noopener">${t}</a>`);
+  return s;
+}
+function mdRender(text) {
+  const body = text.replace(/^---\n[\s\S]*?\n---\n?/, "");
+  const lines = body.split("\n"), out = [];
+  let i = 0, para = [], h1seen = false;
+  const flush = () => { if (para.length) { out.push(`<p>${inline(para.join(" "))}</p>`); para = []; } };
+  while (i < lines.length) {
+    const L = lines[i];
+    if (/^```/.test(L)) {
+      flush(); const buf = []; i++;
+      while (i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i++]);
+      i++; out.push(`<pre><code>${esc(buf.join("\n"))}</code></pre>`); continue;
+    }
+    const h = L.match(/^(#{1,4})\s+(.*)/);
+    if (h) {
+      flush();
+      if (h[1].length === 1 && !h1seen) { h1seen = true; i++; continue; }  // 首个 H1 与面板页题重复，不重渲染
+      out.push(`<h${h[1].length} data-h="${esc(h[2].trim())}">${inline(h[2])}</h${h[1].length}>`); i++; continue;
+    }
+    if (/^\s*[-*]\s+/.test(L)) {
+      flush(); const items = [];
+      while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*[-*]\s+/, ""));
+      out.push(`<ul>${items.map(x => `<li>${inline(x)}</li>`).join("")}</ul>`); continue;
+    }
+    if (/^\s*\d+\.\s+/.test(L)) {
+      flush(); const items = [];
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*\d+\.\s+/, ""));
+      out.push(`<ol>${items.map(x => `<li>${inline(x)}</li>`).join("")}</ol>`); continue;
+    }
+    if (/^\|/.test(L) && /^\s*\|[\s:|-]+\|?\s*$/.test(lines[i + 1] || "")) {
+      flush(); const rows = [];
+      while (i < lines.length && /^\|/.test(lines[i])) rows.push(lines[i++]);
+      const cells = r => r.replace(/^\||\|$/g, "").split("|").map(c => inline(c.trim()));
+      out.push(`<table><thead><tr>${cells(rows[0]).map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody>` +
+        rows.slice(2).map(r => `<tr>${cells(r).map(c => `<td>${c}</td>`).join("")}</tr>`).join("") + "</tbody></table>");
+      continue;
+    }
+    if (/^>\s?/.test(L)) {
+      flush(); const buf = [];
+      while (i < lines.length && /^>\s?/.test(lines[i])) buf.push(lines[i++].replace(/^>\s?/, ""));
+      out.push(`<blockquote>${inline(buf.join(" "))}</blockquote>`); continue;
+    }
+    if (/^---+\s*$/.test(L)) { flush(); out.push("<hr>"); i++; continue; }
+    if (/^\s*$/.test(L)) { flush(); i++; continue; }
+    para.push(L); i++;
+  }
+  flush();
+  return `<div class="md-body">${out.join("")}</div>`;
+}
+function resolvePage(cur, href) {
+  const base = cur.includes("/") ? cur.slice(0, cur.lastIndexOf("/") + 1) : "";
+  const stack = [];
+  for (const seg of (base + href.split("#")[0]).split("/")) {
+    if (seg === "." || seg === "") continue;
+    if (seg === "..") stack.pop(); else stack.push(seg);
+  }
+  return stack.join("/");
+}
+
+/* ── 等距投影 ── */
+const S = 38, ORX = 500, ORY = 56;
+const iso = (x, y, z = 0) => [ORX + (x - y) * S * .866, ORY + (x + y) * S * .5 - z * S];
+const P = a => a.map(p => p.map(v => +v.toFixed(1)).join(",")).join(" ");
+const svg = document.getElementById("svg");
+const NS = "http://www.w3.org/2000/svg";
+const el = (t, a, parent) => { const e = document.createElementNS(NS, t);
+  for (const k in a) e.setAttribute(k, a[k]); (parent || svg).appendChild(e); return e; };
+
+const defs = el("defs", {});
+defs.innerHTML = `
+  <marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M.5 .8 L8 4 L.5 7.2 L2.6 4 z" fill="var(--ink)"/></marker>
+  <marker id="arrA" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M.5 .8 L8 4 L.5 7.2 L2.6 4 z" fill="var(--accent)"/></marker>
+  <filter id="soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2.2"/></filter>`;
+/* 实色三面 + 同色系深色棱线：体积清晰，无叠加光效 */
+const faceColors = did => ({
+  top: mix(tintOf[did], 26, "var(--paper-hi)"),
+  right: mix(tintOf[did], 50, "var(--paper)"),
+  front: mix(tintOf[did], 70, "var(--paper)"),
+});
+const edgeStyle = (did, dashed) => dashed
+  ? { stroke: "var(--ink)", "stroke-opacity": .6, "stroke-width": 1.4, "stroke-dasharray": "3 2.4", "stroke-linejoin": "round" }
+  : { stroke: mix(tintOf[did], 58, "var(--ink)"), "stroke-opacity": .7, "stroke-width": 1.5, "stroke-linejoin": "round" };
+
+const world = el("g", { id: "world" });
+const gGrid = el("g", {}, world), gDist = el("g", {}, world), gSel = el("g", {}, world),
+      gLink = el("g", {}, world), gFlow = el("g", {}, world), gStreak = el("g", {}, world),
+      gNode = el("g", {}, world), gPlate = el("g", {}, world), gTag = el("g", {}, world);
+
+const GX = Math.ceil(Math.max(...DATA.districts.map(d => d.r[0] + d.r[2]))) + 2;
+const GY = Math.ceil(Math.max(...DATA.districts.map(d => d.r[1] + d.r[3]))) + 2;
+for (let i = -1; i <= GX; i++)
+  el("polyline", { points: P([iso(i, -1), iso(i, GY)]), stroke: "var(--ink)", "stroke-width": .25, opacity: .1, fill: "none" }, gGrid);
+for (let i = -1; i <= GY; i++)
+  el("polyline", { points: P([iso(-1, i), iso(GX, i)]), stroke: "var(--ink)", "stroke-width": .25, opacity: .1, fill: "none" }, gGrid);
+/* 地板可交互：分区是架构的第一层结构（进程/部署边界），hover 高亮全区、点击看介绍 */
+const districtNodes = id => DATA.nodes.filter(n => n.district === id).map(n => n.code);
+for (const d of DATA.districts) {
+  const [x, y, w, dd] = d.r;
+  const g = el("g", { class: "dfloor", "data-d": d.id }, gDist);
+  el("polygon", { points: P([iso(x,y),iso(x+w,y),iso(x+w,y+dd),iso(x,y+dd)]),
+    fill: mix(tintOf[d.id], 6, "transparent"),
+    stroke: mix(tintOf[d.id], 60, "var(--ink-soft)"), "stroke-width": 1.8,
+    "stroke-dasharray": "0.5 7", "stroke-linecap": "round" }, g);
+  g.addEventListener("mouseenter", () => {
+    if (typeof sel !== "number") focusSet(new Set(districtNodes(d.id)));
+  });
+  g.addEventListener("mouseleave", () => {
+    if (typeof sel !== "number") focusSet(baseFocus());
+  });
+  // 选中不绑 click：画布平移会 setPointerCapture，click 会被重定向到画布，地板收不到。统一在 stage 的 pointerup 里处理
+}
+
+/* ── 建筑绘制 ── */
+function face(g, pts, fill, extra = {}) {
+  return el("polygon", { points: P(pts), fill, "stroke-linejoin": "round", ...extra }, g);
+}
+function shadow(g, x, y, w, d, light = false) {
+  el("polygon", { points: P([iso(x + .22, y + .22), iso(x + w + .3, y + .22), iso(x + w + .3, y + d + .3), iso(x + .22, y + d + .3)]),
+    fill: "var(--ink)", opacity: light ? .05 : .08, filter: "url(#soft)", stroke: "none" }, g);
+}
+function box(g, did, x, y, w, d, h, z0 = 0, dashed = false) {
+  const F = faceColors(did), ex = edgeStyle(did, dashed);
+  face(g, [iso(x,y+d,z0+h),iso(x+w,y+d,z0+h),iso(x+w,y+d,z0),iso(x,y+d,z0)], F.front, ex);
+  face(g, [iso(x+w,y,z0+h),iso(x+w,y+d,z0+h),iso(x+w,y+d,z0),iso(x+w,y,z0)], F.right, ex);
+  face(g, [iso(x,y,z0+h),iso(x+w,y,z0+h),iso(x+w,y+d,z0+h),iso(x,y+d,z0+h)], F.top, ex);
+}
+function cylinder(g, did, x, y, w, d, h) {
+  const F = faceColors(did), ex = edgeStyle(did);
+  const cx = x + w / 2, cy = y + d / 2, r = Math.min(w, d) / 2;
+  const [tx, ty] = iso(cx, cy, h), [bx, by] = iso(cx, cy, 0);
+  const rx = r * S * 1.22, ry = r * S * .71;
+  el("path", { d: `M${(tx-rx).toFixed(1)} ${ty.toFixed(1)} A${rx} ${ry} 0 0 0 ${(tx+rx).toFixed(1)} ${ty.toFixed(1)} L${(bx+rx).toFixed(1)} ${by.toFixed(1)} A${rx} ${ry} 0 0 1 ${(bx-rx).toFixed(1)} ${by.toFixed(1)} Z`,
+    fill: F.front, ...ex }, g);
+  el("ellipse", { cx: tx, cy: ty, rx, ry, fill: F.top, ...ex }, g);
+}
+function building(n) {
+  const g = el("g", { class: "b", "data-code": n.code }, gNode);
+  const did = n.district, { x, y, w, d, h } = n;
+  shadow(g, x, y, w, d, n.form === "external");
+  if (n.form === "stack") for (let i = 0; i < 4; i++) box(g, did, x, y, w, d, .16, i * .28);
+  else if (n.form === "slabs") {
+    const k = 4, gap = w / k;
+    for (let i = 0; i < k; i++) box(g, did, x + i * gap, y, gap * .5, d, h);
+  }
+  else if (n.form === "cylinder") cylinder(g, did, x, y, w, d, h);
+  else if (n.form === "external") box(g, did, x, y, w, d, h, 0, true);
+  else box(g, did, x, y, w, d, h);
+  if (n.health?.length) {
+    const topZ = n.form === "stack" ? 1.3 : h;
+    const [bx, by] = iso(x + w / 2, y + d / 2, topZ + .5);
+    const bg = el("g", { class: "hbadge" }, g);
+    el("circle", { class: "ring", cx: bx, cy: by, r: 7, fill: "var(--warn)", stroke: "var(--card)", "stroke-width": 1.5 }, bg);
+    el("line", { x1: bx, y1: by - 3.2, x2: bx, y2: by + .6, stroke: "#FFF", "stroke-width": 1.5, "stroke-linecap": "round" }, bg);
+    el("circle", { cx: bx, cy: by + 3, r: .9, fill: "#FFF", stroke: "none" }, bg);
+    el("title", {}, bg).textContent = healthTip(n);
+    bg.addEventListener("click", e => { e.stopPropagation(); openHealth(HEALTH_SECTIONS[n.health[0]]); });
+  }
+  return g;
+}
+/* 名牌落地：放在建筑前方地面通道，不遮后排 */
+function plate(n) {
+  const g = el("g", { class: "b", "data-code": n.code, "data-plate": 1 }, gPlate);
+  const [cx, cy] = iso(n.x + n.w / 2, n.y + n.d, 0);
+  const label = `${n.code} ${n.short || n.name}`;
+  const t = el("text", { x: 0, y: 0, "font-size": 9.5, "font-weight": 700, fill: "var(--ink)" }, g);
+  t.textContent = label;
+  const tw = t.getComputedTextLength() + (n.icon ? 26 : 12);
+  const px = cx - tw / 2, py = cy + 4;
+  el("rect", { x: px, y: py, width: tw, height: 15, rx: 5, fill: "var(--card)",
+    stroke: "var(--line)", "stroke-width": 1 }, g);
+  g.insertBefore(g.firstChild, null); // keep text last
+  t.setAttribute("x", px + (n.icon ? 20 : 6)); t.setAttribute("y", py + 11);
+  if (n.icon) {
+    const u = el("use", { href: `#ic-${n.icon}`, x: px + 5, y: py + 2.5, width: 10, height: 10 }, g);
+    u.setAttribute("style", `color:${tintOf[n.district]}`);
+  }
+  g.appendChild(t);
+  n._plate = g;
+  return g;
+}
+/* 名牌避让：密集区重叠的名牌逐块下移 */
+function resolvePlates() {
+  const items = [...gPlate.children].map(g => ({ g, b: g.getBBox(), dy: 0 }));
+  items.sort((a, b) => a.b.y - b.b.y);
+  for (let pass = 0; pass < 3; pass++)
+    for (let i = 0; i < items.length; i++)
+      for (let j = 0; j < i; j++) {
+        const A = items[j], B = items[i];
+        const ay0 = A.b.y + A.dy, ay1 = ay0 + A.b.height;
+        const by0 = B.b.y + B.dy, by1 = by0 + B.b.height;
+        if (A.b.x < B.b.x + B.b.width - 2 && B.b.x < A.b.x + A.b.width - 2 &&
+            ay0 < by1 - 1 && by0 < ay1 - 1) B.dy = ay1 - B.b.y + 3;
+      }
+  for (const it of items) if (it.dy) it.g.setAttribute("transform", `translate(0 ${it.dy})`);
+}
+
+/* ── 连线：世界坐标裁到扩展 footprint 边缘，箭头绝不进盒 ── */
+function clipToRect(pOut, pIn, n, m = .12) {
+  const x0 = n.x - m, y0 = n.y - m, x1 = n.x + n.w + m, y1 = n.y + n.d + m;
+  const [ax, ay] = pOut, [bx, by] = pIn;
+  let t = 1;
+  const cand = [];
+  if (bx !== ax) { cand.push((x0 - ax) / (bx - ax), (x1 - ax) / (bx - ax)); }
+  if (by !== ay) { cand.push((y0 - ay) / (by - ay), (y1 - ay) / (by - ay)); }
+  for (const k of cand) {
+    if (k <= 0 || k > 1) continue;
+    const px = ax + (bx - ax) * k, py = ay + (by - ay) * k;
+    if (px >= x0 - 1e-6 && px <= x1 + 1e-6 && py >= y0 - 1e-6 && py <= y1 + 1e-6) t = Math.min(t, k);
+  }
+  return [ax + (bx - ax) * t, ay + (by - ay) * t];
+}
+const center = n => [n.x + n.w / 2, n.y + n.d / 2];
+function edgePath(a, b, via, off = 0) {
+  let pts = [center(N[a]), ...(via || []), center(N[b])];
+  if (off && !via?.length) {
+    const [p0, p1] = [pts[0], pts[1]];
+    const dx = p1[0] - p0[0], dy = p1[1] - p0[1], len = Math.hypot(dx, dy) || 1;
+    pts = [p0, [(p0[0] + p1[0]) / 2 - dy / len * off, (p0[1] + p1[1]) / 2 + dx / len * off], p1];
+  }
+  pts[pts.length - 1] = clipToRect(pts[pts.length - 2], pts[pts.length - 1], N[b]);
+  pts[0] = clipToRect(pts[1], pts[0], N[a], .08);
+  return "M" + pts.map(p => iso(p[0], p[1], .04).map(v => +v.toFixed(1)).join(" ")).join(" L");
+}
+
+/* ── 边构建：焦点决定场景箭头 —— 节点→它跨所有场景的片段；场景→该场景；总览→无 ── */
+let linkEls = [], flowEls = [];
+const ambient = [];
+const motionOK = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+const stepsOf = fi => FLOWS[fi] ? FLOWS[fi].steps.map((s, si) => ({ fi, si, s })) : [];
+const allSteps = () => {          // 总览：全部场景的步骤，重复路段去重
+  const seen = new Set(), out = [];
+  FLOWS.forEach((f, fi) => f.steps.forEach((s, si) => {
+    const k = s.from + "|" + s.to + "|" + JSON.stringify(s.via || []);
+    if (seen.has(k)) return;
+    seen.add(k); out.push({ fi, si, s });
+  }));
+  return out;
+};
+function stepsFor(hoverCode) {
+  const code = hoverCode ?? (typeof sel === "string" && !sel.startsWith("L") ? sel : null);
+  if (code) {
+    const out = [];
+    FLOWS.forEach((f, fi) => f.steps.forEach((s, si) => {
+      if (s.from === code || s.to === code) out.push({ fi, si, s });
+    }));
+    return out;
+  }
+  return activeFlow >= 0 ? stepsOf(activeFlow) : allSteps();
+}
+function buildEdges(list = stepsFor()) {
+  gLink.innerHTML = ""; gFlow.innerHTML = ""; gStreak.innerHTML = ""; ambient.length = 0;
+  const steps = list.map(it => it.s);
+  const key = (a, b) => a < b ? a + "|" + b : b + "|" + a;
+  const cnt = {}, idx = {};
+  for (const e of [...DATA.links, ...steps]) if (!e.via?.length) cnt[key(e.from, e.to)] = (cnt[key(e.from, e.to)] || 0) + 1;
+  const offFor = e => {
+    if (e.via?.length) return 0;
+    const k = key(e.from, e.to), i = idx[k] = (idx[k] ?? -1) + 1, c = cnt[k];
+    return c > 1 ? (i - (c - 1) / 2) * .55 : 0;
+  };
+  linkEls = DATA.links.map((l, i) => {
+    const g = el("g", { class: "lk", "data-n": l.from + " " + l.to }, gLink);
+    const p = el("path", { d: edgePath(l.from, l.to, l.via, offFor(l)), stroke: "var(--ink-soft)", "stroke-width": 1,
+      "stroke-dasharray": "2.5 3.5", fill: "none", opacity: .65 }, g);
+    el("path", { d: p.getAttribute("d"), stroke: "transparent", "stroke-width": 8, fill: "none" }, g);
+    g.addEventListener("mouseenter", e => {
+      p.setAttribute("stroke-width", 2); showEdgeTag(l.label, e);
+      if (typeof sel !== "number") focusSet(new Set([l.from, l.to]));   // 两端与本线亮，其余压暗
+    });
+    g.addEventListener("mousemove", e => showEdgeTag(l.label, e));
+    g.addEventListener("mouseleave", () => {
+      p.setAttribute("stroke-width", 1); hideEdgeTag();
+      if (typeof sel !== "number") focusSet(baseFocus());
+    });
+    g.addEventListener("click", e => { e.stopPropagation(); select("L" + i); });
+    return { g, p, l };
+  });
+  flowEls = list.map((it, i) => {
+    const f = it.s;
+    const g = el("g", { class: "lk", "data-n": f.from + " " + f.to }, gFlow);
+    const glow = el("path", { d: edgePath(f.from, f.to, f.via, offFor(f)), stroke: "var(--accent)", "stroke-width": 6,
+      fill: "none", opacity: 0, "stroke-linecap": "round" }, g);
+    const p = el("path", { d: glow.getAttribute("d"), stroke: "var(--ink)", "stroke-width": 1.6,
+      fill: "none", "marker-end": "url(#arr)" }, g);
+    el("path", { d: glow.getAttribute("d"), stroke: "transparent", "stroke-width": 8, fill: "none" }, g);
+    const flabel = `${FLOWS[it.fi].title} · ${it.si + 1}. ${f.title}`;
+    g.addEventListener("mouseenter", e => {
+      showEdgeTag(flabel, e);
+      if (typeof sel !== "number") focusSet(new Set([f.from, f.to]));
+    });
+    g.addEventListener("mousemove", e => showEdgeTag(flabel, e));
+    g.addEventListener("mouseleave", () => {
+      hideEdgeTag();
+      if (typeof sel !== "number") focusSet(baseFocus());
+    });
+    g.addEventListener("click", e => { e.stopPropagation(); showScenarioStep(it.fi, it.si); });
+    return { g, p, glow, f };
+  });
+  if (motionOK) flowEls.forEach(({ p }, i) => {
+    const len = Math.max(p.getTotalLength(), 1);
+    const s = el("path", { d: p.getAttribute("d"), stroke: "#FFFFFF", "stroke-width": 3.2,
+      fill: "none", "stroke-linecap": "round", opacity: .95,
+      "stroke-dasharray": `9 ${len.toFixed(1)}` }, gStreak);
+    ambient.push({ ss: [s], period: len + 9, t: (i * .37 + .15) % 1 });
+  });
+}
+
+const order = [...DATA.nodes].sort((a, b) => (a.x + a.y) - (b.x + b.y));
+const nodeEls = {};
+for (const n of order) nodeEls[n.code] = building(n);
+for (const n of order) plate(n);
+resolvePlates();
+{
+  /* 分区标签统一挂在西角（最左顶点）下方：永远在空地，规则一致 */
+  DATA.districts.forEach((d) => {
+    const [x, y, w, dd] = d.r;
+    const [lx, ly] = iso(x, y + dd);
+    const cy = ly + 8;
+    const g = el("g", { class: "dt", "data-d": d.id }, gTag);
+    const t = el("text", { "font-size": 11.5, "letter-spacing": ".1em", "font-weight": 700,
+      fill: mix(tintOf[d.id], 78, "var(--ink)") }, g);
+    t.textContent = d.label;
+    const tw = t.getComputedTextLength() + 40;
+    el("rect", { x: lx - tw / 2, y: cy, width: tw, height: 24, rx: 12,
+      fill: mix(tintOf[d.id], 16, "var(--card)"),
+      stroke: mix(tintOf[d.id], 45, "var(--card)"), "stroke-width": 1.2 }, g);
+    const u = el("use", { href: `#ic-${d.icon}`, x: lx - tw / 2 + 10, y: cy + 6, width: 12, height: 12 }, g);
+    u.setAttribute("style", `color:${mix(tintOf[d.id], 78, "var(--ink)")}`);
+    t.setAttribute("x", lx - tw / 2 + 27); t.setAttribute("y", cy + 16.5);
+    g.appendChild(t);
+  });
+}
+/* 连线说明浮牌 */
+const edgeTag = el("g", { style: "display:none;pointer-events:none" }, gTag);
+const etRect = el("rect", { fill: "var(--ink)", height: 16, rx: 6 }, edgeTag);
+const etText = el("text", { "font-size": 10, "font-weight": 700, fill: "var(--paper)" }, edgeTag);
+/* 气泡跟随指针：连线是延展目标，路径中点并不是用户注视点 */
+function hideEdgeTag() { edgeTag.style.display = "none"; }
+function showEdgeTag(label, ev) {
+  etText.textContent = label;
+  edgeTag.style.display = "";
+  const r = svg.getBoundingClientRect();
+  const x = vb.x + (ev.clientX - r.left) / r.width * vb.w;
+  const y = vb.y + (ev.clientY - r.top) / r.height * vb.h;
+  // 偏移与矩形/文字同为世界单位，气泡整体随缩放同步，不会在放大时盖住指针
+  const w = etText.getComputedTextLength() + 12;
+  etRect.setAttribute("x", x - w / 2); etRect.setAttribute("y", y - 26); etRect.setAttribute("width", w);
+  etText.setAttribute("x", x - w / 2 + 6); etText.setAttribute("y", y - 15);
+}
+buildEdges(allSteps());   // 初始总览：全部场景的线都在流动
+
+let vbT = null;   // 滚轮缩放的追赶目标；手势平移/捿合直写 vb 不经过它
+(function tick(prev) {
+  requestAnimationFrame(now => {
+    const dt = prev ? Math.min(now - prev, 50) : 16;
+    for (const d of ambient) {
+      d.t = (d.t + dt * .00045) % 1;
+      const off = (-d.t * d.period).toFixed(1);
+      for (const s of d.ss) s.setAttribute("stroke-dashoffset", off);
+    }
+    if (vbT) {   // 指数平滑追赶：每步滚轮只改目标，画面柔和地跟上
+      const a = 1 - Math.exp(-dt / 55);
+      vb.x += (vbT.x - vb.x) * a; vb.y += (vbT.y - vb.y) * a;
+      vb.w += (vbT.w - vb.w) * a; vb.h += (vbT.h - vb.h) * a;
+      if (Math.abs(vbT.w - vb.w) + Math.abs(vbT.x - vb.x) + Math.abs(vbT.y - vb.y) < vbT.w * .002) { vb = { ...vbT }; vbT = null; }
+      applyVB();
+    }
+    tick(now);
+  });
+})();
+
+/* ── 场景切换 ── */
+const flowbar = document.getElementById("flowbar");
+/* 滑动指示器：首次创建不播入场，之后位置/宽度变化由 CSS 过渡接管，可中断 */
+function segInd(box) {
+  if (!box || box.hidden) return;
+  let ind = box.querySelector(".seg-ind");
+  const fresh = !ind;
+  if (fresh) { ind = document.createElement("div"); ind.className = "seg-ind"; box.prepend(ind); }
+  const on = box.querySelector("button.on");
+  if (!on) { ind.style.width = "0px"; return; }
+  if (fresh) ind.style.transition = "none";
+  ind.style.translate = on.offsetLeft + "px 0";
+  ind.style.width = on.offsetWidth + "px";
+  if (fresh) requestAnimationFrame(() => ind.style.transition = "");
+}
+function syncFlowbar() {
+  [...flowbar.children].forEach(b => b.tagName === "BUTTON" && b.classList.toggle("on", +b.dataset.f === activeFlow));
+  segInd(flowbar);
+}
+if (FLOWS.length) {
+  flowbar.hidden = false;
+  flowbar.innerHTML = `<button data-f="-1" class="on">总览</button>` +
+    FLOWS.map((f, i) => `<button data-f="${i}">${f.title}</button>`).join("");
+  segInd(flowbar);
+  flowbar.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    const i = +b.dataset.f;
+    stopFlowVisual(); activeFlow = i; syncFlowbar();
+    if (i < 0) { sel = null; buildEdges(); focusSet(null); }
+    else {
+      sel = { flow: i }; markSel(null); buildEdges(stepsOf(i));
+      focusSet(new Set(FLOWS[i].steps.flatMap(s => [s.from, s.to])));
+    }
+    render();
+  });
+}
+function showScenarioStep(fi, si) {
+  if (activeFlow !== fi) { activeFlow = fi; syncFlowbar(); }
+  buildEdges(stepsOf(fi));
+  pauseAuto(); showStep(si);
+}
+
+/* ── 左侧索引：分区折叠 + 过滤 ── */
+const nav = document.getElementById("nav");
+nav.insertAdjacentHTML("beforeend",
+  `<div class="filter"><div class="sbox"><svg class="ic sic"><use href="#ic-search"/></svg>` +
+  `<input id="navq" aria-label="搜索模块"></div></div>`);
+/* 卡片内按钮负责收起，边缘把手只在收起后出现负责展开；跨断点时跟随视口切换 */
+function bindSide(cls, ids, name) {
+  const btns = ids.map((id) => document.getElementById(id)).filter(Boolean);
+  const sync = () => {
+    const off = document.body.classList.contains(cls);
+    for (const b of btns) {
+      b.setAttribute("aria-expanded", String(!off));
+      b.title = (off ? "展开" : "收起") + name;
+    }
+  };
+  for (const b of btns) b.onclick = () => { document.body.classList.toggle(cls); sync(); };
+  sync();
+  return sync;
+}
+const syncNavBtns = bindSide("nav-off", ["handleNav"], "导航栏");
+const syncAsideBtns = bindSide("aside-off", ["handleAside"], "面板");
+const mqNav = matchMedia("(max-width: 1080px)"), mqAside = matchMedia("(max-width: 820px)");
+function applyNarrow() {
+  document.body.classList.add("no-anim");
+  document.body.classList.toggle("nav-off", mqNav.matches);
+  document.body.classList.toggle("aside-off", mqAside.matches);
+  syncNavBtns(); syncAsideBtns();
+  requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.remove("no-anim")));
+}
+mqNav.addEventListener("change", applyNarrow);
+mqAside.addEventListener("change", applyNarrow);
+applyNarrow();
+/* 窄屏抽屉：点导航项后自动收起，让位给地图或面板 */
+const autoCloseNav = () => {
+  if (mqNav.matches && !document.body.classList.contains("nav-off"))
+    document.getElementById("handleNav").click();
+};
+for (const d of DATA.districts) {
+  const items = DATA.nodes.filter(n => n.district === d.id);
+  nav.insertAdjacentHTML("beforeend",
+    `<div class="grp" data-d="${d.id}"
+       style="color:${mix(tintOf[d.id], 72, "var(--ink)")};background:${mix(tintOf[d.id], 14, "var(--card)")}">
+       ${icSwap(d.icon)}<span>${d.label}</span><span class="ct">${items.length}</span><button class="chev" aria-label="折叠分组">▾</button></div>
+     <div class="grpbody" data-d="${d.id}">` +
+    items.map(n =>
+      `<div class="item" data-code="${n.code}">${icSwap(n.icon || d.icon, 12)}<span class="code">${n.code}</span>
+       <span class="nm">${n.short || n.name}</span>${n.health?.length ? `<span class="hdot" title="${healthTip(n)}"></span>` : ""}${n.count ? `<span class="ct" title="群组节点：汇聚 ${n.count} 个同类模块">${n.count} 模块</span>` : ""}</div>`).join("") +
+    `</div>`);
+}
+nav.addEventListener("click", e => {
+  const chev = e.target.closest(".chev");   // 箭头管折叠，标题其余部分选中分区
+  if (chev) {
+    const grp = chev.closest(".grp");
+    grp.classList.toggle("closed");
+    nav.querySelector(`.grpbody[data-d="${grp.dataset.d}"]`).classList.toggle("closed");
+    return;
+  }
+  const grp = e.target.closest(".grp");
+  if (grp) { select({ district: grp.dataset.d }); autoCloseNav(); return; }
+  const it = e.target.closest(".item");
+  if (!it) return;
+  select(it.dataset.code);
+  autoCloseNav();
+});
+/* 面板拖动调宽：不持久化，HTML 是可重建的派生产物 */
+const asideResize = document.getElementById("asideResize");
+let rsz = null;
+asideResize.addEventListener("pointerdown", e => {
+  rsz = { x: e.clientX, w: document.querySelector("aside").getBoundingClientRect().width };
+  asideResize.classList.add("on"); document.body.classList.add("resizing");
+  asideResize.setPointerCapture(e.pointerId); e.preventDefault();
+});
+asideResize.addEventListener("pointermove", e => {
+  if (!rsz) return;
+  const w = Math.min(680, Math.max(280, rsz.w - (e.clientX - rsz.x)));
+  document.documentElement.style.setProperty("--asidew", w + "px");
+});
+const endRsz = () => { rsz = null; asideResize.classList.remove("on"); document.body.classList.remove("resizing"); };
+asideResize.addEventListener("pointerup", endRsz);
+asideResize.addEventListener("pointercancel", endRsz);
+document.getElementById("navq").addEventListener("input", e => {
+  const q = e.target.value.trim().toLowerCase();
+  for (const body of nav.querySelectorAll(".grpbody")) {
+    let vis = 0;
+    for (const it of body.children) {
+      const hit = !q || it.textContent.toLowerCase().includes(q);
+      it.classList.toggle("hid", !hit); if (hit) vis++;
+    }
+    const open = !q || vis > 0;
+    body.classList.toggle("closed", !open);
+    nav.querySelector(`.grp[data-d="${body.dataset.d}"]`).classList.toggle("closed", !open);
+  }
+});
+let navHover = null;
+nav.addEventListener("mouseover", e => {
+  const code = e.target.closest(".item")?.dataset.code;
+  if (!code || code === navHover || typeof sel === "number") return;
+  navHover = code; focusSet(hood(code)); buildEdges(stepsFor(code));
+});
+nav.addEventListener("mouseout", e => {
+  const to = e.relatedTarget?.closest?.(".item")?.dataset.code;
+  if (to === navHover) return;
+  navHover = null;
+  if (typeof sel !== "number") { focusSet(baseFocus()); buildEdges(); }
+});
+
+/* ── 面板：页面（wiki md 直渲）/ 关系（图数据派生）── */
+let tab = "page", sel = null;
+const panel = document.getElementById("panel");
+const tabPage = document.getElementById("tabPage"), tabRel = document.getElementById("tabRel");
+/* 两类文件清单职责不同，分开命名：
+   关键出处 = sources，支撑论断的锚点，参与哈希漂移检查
+   范围 = 页面 covers 展开，责任田边界，参与认领对账（粒度是页，同页的多栋楼共享同一范围）*/
+const FILES = DATA.files || {};          // { 仓库相对路径: 行数 }
+const FILE_KEYS = Object.keys(FILES);
+const linesOf = fs => fs.reduce((s, f) => s + (FILES[f] || 0), 0);
+const fmtLines = n => n >= 10000 ? [(n / 10000).toFixed(1), "万行"] : [n.toLocaleString(), "行"];
+function fileRows(files, bars = true) {
+  const max = bars ? Math.max(1, ...files.map(f => FILES[f] || 0)) : 0;
+  return files.map(s => {
+    const n = FILES[s] || 0;
+    const bar = max && n ? `<i style="width:${Math.max(6, Math.round(n / max * 100))}%"></i>` : "";
+    const loc = n ? `<span class="loc${bar ? " bar" : ""}">${bar}${n}</span>` : "";
+    return DATA.meta.repoUrl
+      ? `<li class="fi">${ic("file", 11)}<a class="src" target="_blank" href="${DATA.meta.repoUrl}/${s}"><code>${s}</code></a>${loc}</li>`
+      : `<li class="fi src" data-path="${s}">${ic("file", 11)}<code>${s}</code>${loc}</li>`;
+  }).join("");
+}
+const statRow = pairs => `<div class="statrow">` +
+  pairs.map(([v, k]) => `<span class="sv">${v}<em>${k}</em></span>`).join("") + `</div>`;
+function coversOf(pageRef) {
+  const m = (WIKI[(pageRef || "").split("#")[0]] || "").match(/^---\n([\s\S]*?)\n---/);
+  if (!m) return [];
+  const out = [];
+  let on = false;
+  for (const l of m[1].split("\n")) {
+    if (/^covers:\s*$/.test(l)) { on = true; continue; }
+    if (!on) continue;
+    const it = l.match(/^\s+-\s+(.+?)\s*$/);   // 与 verify 的认领对账同步则：取整行剩余，路径含空格也不会提前截断
+    if (it) out.push(it[1]); else break;
+  }
+  return out;
+}
+// 前缀语义与 verify.mjs 的认领对账一致：目录写法不带斜杠也照样匹配，否则面板会静默少一节
+const filesOf = pageRef => {
+  const cs = coversOf(pageRef);
+  return cs.length ? FILE_KEYS.filter(f => cs.some(c => f === c || f.startsWith(c.endsWith("/") ? c : c + "/"))) : [];
+};
+/* 分区文件：区内节点去重到页、再按文件去重——多页重叠认领时不能把同一文件算两次 */
+const districtFiles = id => {
+  const set = new Set();
+  for (const n of DATA.nodes) {
+    if (n.district !== id || !n.page) continue;
+    for (const f of filesOf(n.page)) set.add(f);
+  }
+  return [...set];
+};
+function srcList(a) {
+  if (!a?.length) return "";
+  return `<h3>关键出处</h3><p class="dimtext">支撑本页论断的锚点文件，它们改动会触发 wiki 同步检查</p><ul>` +
+    fileRows(a, false) + "</ul>";
+}
+function scopeList(pageRef) {
+  const files = filesOf(pageRef).sort((a, b) => (FILES[b] || 0) - (FILES[a] || 0));   // 大文件在前，前 8 条预览即是重点
+  if (!files.length) return "";
+  const more = files.length > 8;
+  return `<h3>范围</h3>` +
+    statRow([[files.length, "个文件"], fmtLines(linesOf(files))]) +
+    `<ul class="flist${more ? " collapsed" : ""}">${fileRows(files)}</ul>` +
+    (more ? `<button class="morebtn">展开全部 ${files.length} 个</button>` : "");
+}
+/* 分区的模块清单：与文件清单同形，用行数排序和比例条表达轻重 */
+function moduleRows(codes) {
+  const rows = codes.map(c => ({ code: c, n: N[c], lines: N[c].page ? linesOf(filesOf(N[c].page)) : 0 }))
+    .sort((a, b) => b.lines - a.lines);
+  const max = Math.max(1, ...rows.map(r => r.lines));
+  return `<ul class="flist">` + rows.map(r =>
+    `<li class="fi mod" data-code="${r.code}">${ic(r.n.icon || "cube", 11)}<span class="mn">${r.n.short || r.n.name}</span>` +
+    (r.lines ? `<span class="loc bar"><i style="width:${Math.max(6, Math.round(r.lines / max * 100))}%"></i>${r.lines}</span>` : "") +
+    `</li>`).join("") + `</ul>`;
+}
+const kicker = (icn, label, color) =>
+  `<div class="kicker" ${color ? `style="color:${color}"` : ""}>${ic(icn)}<span>${label}</span></div>`;
+const chips = arr => arr.length ? `<div class="chips">${arr.join("")}</div>` : `<p class="dimtext">无</p>`;
+const nodeChip = (code, extra) =>
+  `<span class="chip" data-code="${code}">${N[code].short || N[code].name}${extra ? " · " + extra : ""}</span>`;
+function flowRefs(code) {
+  const out = [];
+  FLOWS.forEach((f, fi) => f.steps.forEach((s, si) => {
+    if (s.from === code || s.to === code)
+      out.push(`<span class="chip" data-flow="${fi}" data-step="${si}">${f.title} · ${si + 1}. ${s.title}</span>`);
+  }));
+  return out;
+}
+function pageBody(pageRef) {
+  const page = pageRef?.split("#")[0];
+  return page && WIKI[page] ? mdRender(WIKI[page]) : "";
+}
+/* 分区清单：与模块/文件清单同形，总览页的主体 */
+function districtRows() {
+  const rows = DATA.districts.map(d => {
+    const ns = districtNodes(d.id).map(c => N[c]), fs = districtFiles(d.id);
+    const mods = ns.filter(n => n.form !== "external").length;
+    return { d, mods, exts: ns.length - mods, files: fs.length, lines: linesOf(fs) };
+  }).sort((a, b) => b.lines - a.lines);
+  const max = Math.max(1, ...rows.map(r => r.lines));
+  return `<ul class="flist">` + rows.map(r => {
+    // 外部系统在仓库之外，本就没有行数——写明它是外部，而不是留个空白像数据缺失
+    const sub = [r.mods && `${r.mods} 模块`, r.exts && `${r.exts} 外部系统`, r.files && `${r.files} 文件`]
+      .filter(Boolean).join(" · ");
+    return `<li class="fi mod" data-district="${r.d.id}">${ic(r.d.icon, 11)}<span class="mn">${r.d.label}</span>` +
+      `<span class="sub">${sub}</span>` +
+      (r.lines ? `<span class="loc bar"><i style="width:${Math.max(6, Math.round(r.lines / max * 100))}%"></i>${r.lines}</span>`
+               : `<span class="loc">—</span>`) + `</li>`;
+  }).join("") + `</ul>`;
+}
+function systemPanel() {
+  const m = DATA.meta;
+  if (tab === "page")
+    return kicker("globe", "系统") + `<h2>${m.headline}</h2>` +
+      (pageBody("system.md") || "");
+  const all = new Set();
+  for (const d of DATA.districts) for (const f of districtFiles(d.id)) all.add(f);
+  const files = [...all];
+  return kicker("globe", "系统") + `<h2>${m.headline}</h2>` +
+    statRow([[DATA.districts.length, "个分区"], [DATA.nodes.filter(n => n.form !== "external").length, "个模块"],
+      [files.length, "个文件"], fmtLines(linesOf(files))]) +
+    `<h3>分区</h3>` + districtRows() +
+    `<h3>场景</h3>` + chips(FLOWS.map((f, i) =>
+      `<span class="chip" data-flow="${i}" data-step="0">${f.title} · ${f.steps.length} 步</span>`)) +
+    srcList(m.sources);
+}
+function nodePanel(code) {
+  const n = N[code], d = DIST[n.district];
+  const head = kicker(n.icon || d.icon, d.label, mix(tintOf[d.id], 55, "var(--ink)")) +
+    `<div class="titlerow"><h2>${n.name}</h2>` +
+    (n.health?.length ? `<div class="chips">${n.health.map(h =>
+      `<span class="chip hchip" data-hsec="${HEALTH_SECTIONS[h]}">${ic("shield", 11)}${HEALTH_SECTIONS[h]}</span>`).join("")}</div>` : "") +
+    `</div>` +
+    (n.count ? `<p class="dimtext">群组节点 · 汇聚 ${n.count} 个同类模块为一栋</p>` : "");
+  if (tab === "page") {
+    const body = pageBody(n.page);
+    return head + (body || `<p class="dimtext">未关联 wiki 页。</p>`);
+  }
+  const up = DATA.links.filter(l => l.to === code).map(l => nodeChip(l.from, l.label));
+  const down = DATA.links.filter(l => l.from === code).map(l => nodeChip(l.to, l.label));
+  return head +
+    `<h3>上游</h3>` + chips(up) +
+    `<h3>下游</h3>` + chips(down) +
+    `<h3>参与场景</h3>` + chips(flowRefs(code)) +
+    srcList(n.sources) + scopeList(n.page);
+}
+function pageTitle(pageRef) {
+  const page = pageRef.split("#")[0];
+  const m = (WIKI[page] || "").replace(/^---\n[\s\S]*?\n---\n?/, "").match(/^#\s+(.+)$/m);
+  return m ? m[1] : page.replace(/\.md$/, "");
+}
+function vitalsCard() {
+  if (!HS) return "";
+  const h = DATA.health, { score, grade, color, cuts } = HS;
+  const advice = cuts.filter(([c]) => c >= 1).sort((a, b) => b[0] - a[0]).slice(0, 2)
+    .map(([c, t]) => `<div>${t} <b style="color:${color}">≈ +${Math.round(c)} 分</b></div>`)
+    .join("") || `<div>零死码零断裂，保持住就是满分状态</div>`;
+  const C = (2 * Math.PI * 34).toFixed(1);
+  const stat = (label, val, sec, extra = "") =>
+    `<div class="vstat" data-hsec="${sec}"><div class="vv"${val ? ` style="color:${color}"` : ""}>${val}${extra}</div><div class="vk">${label}</div></div>`;
+  return `<div class="vitals">
+    <div class="gauge" style="color:${color}"><svg viewBox="0 0 84 84">
+      <circle class="gbg" cx="42" cy="42" r="34"/>
+      <circle class="gfg" cx="42" cy="42" r="34" stroke-dasharray="${C}" stroke-dashoffset="${(C * (1 - score / 100)).toFixed(1)}"/></svg>
+      <div class="gscore">${score}<span>分</span></div></div>
+    <div class="vmeta"><div class="vgrade" style="color:${color}">${grade}</div>
+      <div class="vadvice">${advice}</div>
+      <div class="vstats">${stat("死代码", h.dead ?? 0, "死代码", h.suspects ? `<em> +${h.suspects} 疑似</em>` : "")}${stat("死导出", h.deadExports ?? 0, "死代码")}${stat("循环依赖", h.cycles ?? 0, "循环依赖")}${stat("断点", h.breaks ?? 0, "断点")}</div>
+    </div></div>`;
+}
+function wikiPanel() {
+  return kicker("book", "WIKI") + `<h2>${pageTitle(sel.page)}</h2>` +
+    (pageBody(sel.page) || `<p class="dimtext">页面不存在：${esc(sel.page)}</p>`);
+}
+
+/* 体检：独立模态——它不属于某个节点，没有「介绍/关系」语义，不占侧边面板 */
+const healthDlg = document.getElementById("healthDlg"), healthBody = document.getElementById("healthBody");
+function scrollToSection(root, name) {
+  if (!name) { root.scrollTop = 0; return; }
+  const h = [...root.querySelectorAll("[data-h]")].find(e => e.dataset.h === name);
+  if (h) h.scrollIntoView({ block: "start" });
+}
+function openHealth(anchor) {
+  if (HS) healthBody.style.setProperty("--hc", HS.color);   // 分级色透给标题图标与评分卡背景
+  healthBody.innerHTML = `<button class="hclose" title="关闭">${ic("x")}</button>` +
+    `<div class="hhead">${ic("shield", 18)}<span>${pageTitle("health.md")}</span></div>` +
+    vitalsCard() + mdRender(WIKI["health.md"] || "");
+  if (!healthDlg.open) healthDlg.showModal();
+  healthBody.querySelector(".hclose").onclick = () => healthDlg.close();
+  healthBody.querySelectorAll("[data-hsec]").forEach(el =>
+    el.addEventListener("click", () => scrollToSection(healthBody, el.dataset.hsec)));
+  const gfg = healthBody.querySelector(".gauge .gfg");
+  if (gfg && motionOK) {   // 入场：圆环从 0 长到得分，数字同节奏数上去
+    const off = gfg.getAttribute("stroke-dashoffset");
+    gfg.setAttribute("stroke-dashoffset", gfg.getAttribute("stroke-dasharray"));
+    requestAnimationFrame(() => requestAnimationFrame(() => gfg.setAttribute("stroke-dashoffset", off)));
+    const gs = healthBody.querySelector(".gscore");
+    const end = +gs.firstChild.textContent, t0 = performance.now();
+    (function cnt(now) {
+      const k = Math.min((now - t0) / 700, 1);
+      gs.firstChild.textContent = Math.round(end * (1 - (1 - k) ** 3));
+      if (k < 1) requestAnimationFrame(cnt);
+    })(t0);
+  }
+  requestAnimationFrame(() => scrollToSection(healthBody, anchor));
+}
+healthDlg.addEventListener("click", e => { if (e.target === healthDlg) healthDlg.close(); });
+document.getElementById("btnHealth")?.addEventListener("click", () => openHealth());
+function scenarioPanel(fi) {
+  const F = FLOWS[fi];
+  const head = kicker("play", "场景") + `<h2>${F.title}</h2>`;
+  const steps = `<ul class="steps">${stepRows(F, -1)}</ul>`;
+  if (tab === "page") {
+    const body = pageBody(F.page || "data-flow.md");
+    return head + (body || `<h3>步骤</h3>` + steps);
+  }
+  const route = [...new Set(F.steps.flatMap(s => [s.from, s.to]))];
+  return head +
+    `<h3>入口</h3>` + chips([nodeChip(F.steps[0].from)]) +
+    `<h3>途经模块</h3>` + chips(route.map(c => nodeChip(c))) +
+    `<h3>步骤</h3>` + steps;
+}
+function districtPanel(id) {
+  const d = DIST[id];
+  const codes = districtNodes(id), inSet = new Set(codes);
+  const head = kicker(d.icon, "分区", mix(tintOf[id], 60, "var(--ink)")) + `<h2>${d.label}</h2>`;
+  if (tab === "page") {
+    const body = d.page ? pageBody(d.page) : "";
+    return head + (body ||
+      `<p class="dimtext">分区是进程与职责边界的划分，本区包含 ${codes.length} 个模块。切到「关系」看它们是谁、与区外怎么往来。</p>`);
+  }
+  const cross = (DATA.links || []).filter(l => inSet.has(l.from) !== inSet.has(l.to))
+    .map(l => { const out = inSet.has(l.from); const other = out ? l.to : l.from;
+      return N[other] ? `<span class="chip" data-code="${other}">${out ? "→" : "←"} ${N[other].short || N[other].name}${l.label ? " · " + l.label : ""}</span>` : ""; })
+    .filter(Boolean);
+  const scen = FLOWS.map((f, i) => [f, i])
+    .filter(([f]) => f.steps.some(s => inSet.has(s.from) || inSet.has(s.to)))
+    .map(([f, i]) => `<span class="chip" data-flow="${i}" data-step="0">${f.title}</span>`);
+  const df = districtFiles(id);
+  const mods = codes.filter(c => N[c].form !== "external").length;
+  return head +
+    (df.length ? statRow([[mods, "个模块"], [df.length, "个文件"], fmtLines(linesOf(df))])
+      : `<p class="dimtext">本区是仓库之外的系统，不含本仓库代码。</p>`) +
+    `<h3>包含模块</h3>` + moduleRows(codes) +
+    `<h3>跨区往来 · ${cross.length}</h3>` + chips(cross) +
+    `<h3>参与场景</h3>` + chips(scen);
+}
+function linkPanel(i) {
+  const l = DATA.links[i];
+  return kicker("gateway", "结构关系") + `<h2>${l.label}</h2>
+    <p>${l.what || ""}</p><p><code>${N[l.from].name}</code> → <code>${N[l.to].name}</code></p>
+    ${srcList([...(N[l.from].sources || []).slice(0, 1), ...(N[l.to].sources || []).slice(0, 1)])}`;
+}
+/* 同一拍的步骤共用序号、用 a/b/c 区分，一眼看得出哪几步是同时发生的 */
+function stepRows(F, curBeat) {
+  return beatsOf(F.steps).flatMap((b, k) => b.map((j, m) => {
+    const no = b.length > 1 ? `${k + 1}${String.fromCharCode(97 + m)}` : `${k + 1}`;
+    const state = curBeat < 0 ? "" : k < curBeat ? "done" : k === curBeat ? "now" : "";
+    return `<li class="${state}" data-step="${j}"><span class="no">${no}</span>${F.steps[j].title}</li>`;
+  })).join("");
+}
+function flowPanel(i) {
+  const F = FLOWS[activeFlow], beats = beatsOf(F.steps);
+  const k = beats.findIndex(b => b.includes(i));
+  const cur = beats[k], many = cur.length > 1;
+  const head = kicker("play", F.title) +
+    `<h2>第 ${k + 1}/${beats.length} ${many ? `拍 · 并行 ${cur.length} 步` : `步 · ${F.steps[cur[0]].title}`}</h2>`;
+  const body = cur.map(j => {
+    const f = F.steps[j];
+    return (many ? `<h3>${f.title}</h3>` : "") +
+      `<p>${f.what}</p><p><code>${N[f.from].name}</code> → <code>${N[f.to].name}</code></p>` +
+      srcList(f.sources || [...(N[f.from].sources || []).slice(0, 1), ...(N[f.to].sources || []).slice(0, 1)]);
+  }).join("");
+  return head + body + `<h3>全部步骤</h3><ul class="steps">${stepRows(F, k)}</ul>`;
+}
+function scrollToAnchor(pageRef) {
+  const anchor = pageRef?.split("#")[1];
+  if (!anchor) { panel.scrollTop = 0; return; }
+  const h = [...panel.querySelectorAll("[data-h]")].find(e => e.dataset.h === anchor);
+  if (h) h.scrollIntoView({ block: "start" });
+}
+function render() {
+  panel.innerHTML =
+    sel == null ? systemPanel() :
+    typeof sel === "number" ? flowPanel(sel) :
+    typeof sel === "object" ? (sel.flow != null ? scenarioPanel(sel.flow) : sel.district ? districtPanel(sel.district) : wikiPanel()) :
+    sel.startsWith("L") ? linkPanel(+sel.slice(1)) : nodePanel(sel);
+  document.querySelectorAll("nav .item").forEach(e => {
+    e.classList.toggle("sel", e.dataset.code === sel);
+    e.classList.remove("dm");
+  });
+  panel.querySelectorAll(".steps li").forEach(li =>
+    li.addEventListener("click", () => { pauseAuto(); showStep(+li.dataset.step); }));
+  panel.querySelectorAll("li.src").forEach(li =>
+    li.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(li.dataset.path); } catch {}
+      const c = li.querySelector("code"), t = c.textContent;
+      c.textContent = "已复制 ✓"; setTimeout(() => c.textContent = t, 900);
+    }));
+  panel.querySelectorAll(".chip[data-code], li.mod[data-code]").forEach(ch =>
+    ch.addEventListener("click", () => select(ch.dataset.code)));
+  panel.querySelectorAll("li.mod[data-district]").forEach(li =>
+    li.addEventListener("click", () => select({ district: li.dataset.district })));
+  panel.querySelectorAll(".chip[data-flow]").forEach(ch =>
+    ch.addEventListener("click", () => showScenarioStep(+ch.dataset.flow, +ch.dataset.step)));
+  panel.querySelectorAll("[data-hsec]").forEach(ch =>
+    ch.addEventListener("click", () => openHealth(ch.dataset.hsec)));
+  panel.querySelector(".morebtn")?.addEventListener("click", e => {
+    panel.querySelector(".flist.collapsed")?.classList.remove("collapsed");
+    e.target.remove();
+  });
+  panel.querySelectorAll("a.wl").forEach(a =>
+    a.addEventListener("click", () => {
+      const cur = (sel && typeof sel === "object" && (sel.page || FLOWS[sel.flow]?.page)) ||
+        (typeof sel === "string" && !sel.startsWith("L") && N[sel]?.page) || "index.md";
+      const target = resolvePage(cur.split("#")[0], a.dataset.href);
+      openWikiPage(target, a.dataset.href.split("#")[1]);
+    }));
+  if (typeof sel === "object" && sel) scrollToAnchor(sel.flow != null ? FLOWS[sel.flow].page : sel.page);
+  else if (typeof sel === "string" && !sel.startsWith("L") && tab === "page") scrollToAnchor(N[sel]?.page);
+}
+const tabsBox = document.querySelector(".tabs");
+tabPage.onclick = () => { tab = "page"; tabPage.classList.add("on"); tabRel.classList.remove("on"); segInd(tabsBox); render(); };
+tabRel.onclick = () => { tab = "rel"; tabRel.classList.add("on"); tabPage.classList.remove("on"); segInd(tabsBox); render(); };
+segInd(tabsBox);
+/* 面板拖宽、窗口变化都会改变按钮几何，指示器跟着容器尺寸重测 */
+const segRO = new ResizeObserver(() => { segInd(tabsBox); segInd(flowbar); });
+segRO.observe(tabsBox);
+if (FLOWS.length) segRO.observe(flowbar);
+
+/* ── 聚焦 ── */
+function focusSet(set) {
+  for (const [c, g] of Object.entries(nodeEls)) g.classList.toggle("dim", !!set && !set.has(c));
+  for (const g of gPlate.children) g.classList.toggle("dim", !!set && !set.has(g.dataset.code));
+  for (const g of gTag.children) {   // 分区名牌跟随聚焦：区内无亮节点则一同退下
+    if (!g.dataset.d) continue;
+    g.classList.toggle("dim", !!set && !DATA.nodes.some(n => n.district === g.dataset.d && set.has(n.code)));
+  }
+  for (const g of [...gLink.children, ...gFlow.children]) {
+    const [a, b] = g.dataset.n.split(" ");
+    const live = !set || (set.has(a) && set.has(b));
+    g.classList.toggle("dim", !live);
+    g.classList.toggle("hi", !!set && live);
+  }
+}
+const hood = code => new Set([code, ...(adj[code] || [])]);
+function markSel(code) {
+  gSel.innerHTML = "";
+  if (!code) return;
+  const n = N[code];
+  el("polygon", { id: "selring", points: P([
+    iso(n.x - .35, n.y - .35), iso(n.x + n.w + .35, n.y - .35),
+    iso(n.x + n.w + .35, n.y + n.d + .35), iso(n.x - .35, n.y + n.d + .35)]),
+    fill: "none", stroke: "var(--accent)", "stroke-width": 2 }, gSel);
+}
+function hopNode(code) {
+  const g = nodeEls[code];
+  if (!g) return;
+  g.classList.remove("hop"); g.getBBox(); g.classList.add("hop");
+  g.addEventListener("animationend", () => g.classList.remove("hop"), { once: true });
+}
+function baseFocus() {
+  if (typeof sel === "string" && !sel.startsWith("L")) return hood(sel);
+  if (sel && typeof sel === "object") {
+    if (sel.flow != null) return new Set(FLOWS[sel.flow].steps.flatMap(s => [s.from, s.to]));
+    if (sel.district) return new Set(districtNodes(sel.district));
+  }
+  return null;
+}
+function markDistrict(id) {
+  for (const g of gDist.children) g.classList.toggle("sel", g.dataset.d === id);
+  for (const e of nav.querySelectorAll(".grp")) e.classList.toggle("sel", e.dataset.d === id);
+}
+function select(code) {
+  stopFlowVisual(); sel = code; hideEdgeTag();
+  if (code == null && activeFlow >= 0) { activeFlow = -1; syncFlowbar(); }  // 点空白回总览
+  const isNode = typeof code === "string" && !code.startsWith("L");
+  buildEdges();
+  markSel(isNode ? code : null);
+  markDistrict(code && typeof code === "object" ? code.district : null);
+  focusSet(baseFocus());
+  if (isNode) hopNode(code);
+  render();
+  // 面板内容淡入仅限点选：hover 预览和播放节拍是高频替换，不进这条路径，不加动画
+  if (motionOK) panel.animate({ opacity: [0, 1], translate: ["0 3px", "0 0"] },
+    { duration: 160, easing: "cubic-bezier(.16, 1, .3, 1)" });
+}
+/* 打开 wiki 页时同步地图：模块页→点亮对应楼；场景小节→激活对应路线；跨模块页→不选中。
+   面板收起时先展开——内容不能渲染进看不见的地方 */
+function openWikiPage(target, anchor) {
+  if (target === "health.md") { openHealth(anchor); return; }
+  if (document.body.classList.contains("aside-off")) document.getElementById("handleAside").click();
+  const ref = target + (anchor ? "#" + anchor : "");
+  const fi = FLOWS.findIndex(f => f.page && f.page.split("#")[0] === target &&
+    anchor && f.page.split("#")[1] === anchor);
+  if (fi >= 0) {
+    stopFlowVisual(); activeFlow = fi; syncFlowbar();
+    sel = { flow: fi }; markSel(null); buildEdges(stepsOf(fi));
+    focusSet(new Set(FLOWS[fi].steps.flatMap(s => [s.from, s.to])));
+    render(); return;
+  }
+  const matches = DATA.nodes.filter(n => (n.page || "").split("#")[0] === target);
+  if (matches.length === 1) {
+    select(matches[0].code);
+    if (anchor) scrollToAnchor(ref);
+    return;
+  }
+  sel = { page: ref }; markSel(null); render();
+  let set = null;
+  if (matches.length) set = new Set(matches.map(n => n.code));
+  else {
+    const fs = FLOWS.filter(f => (f.page || "").split("#")[0] === target);
+    if (fs.length) set = new Set(fs.flatMap(f => f.steps.flatMap(s => [s.from, s.to])));
+  }
+  focusSet(set); navDim(set);
+}
+function navDim(set) {
+  document.querySelectorAll("nav .item").forEach(e =>
+    e.classList.toggle("dm", !!set && !set.has(e.dataset.code)));
+}
+function bindNode(g) {
+  const code = g.dataset.code;
+  g.addEventListener("mouseenter", () => {
+    if (typeof sel !== "number") {
+      focusSet(hood(code)); buildEdges(stepsFor(code));
+      if (sel == null) panel.innerHTML = nodePanel(code);
+    }
+  });
+  g.addEventListener("mouseleave", () => {
+    if (typeof sel !== "number") {
+      focusSet(baseFocus()); buildEdges();
+      if (sel == null) render();
+    }
+  });
+  g.addEventListener("click", e => { e.stopPropagation(); select(code); });
+}
+Object.values(nodeEls).forEach(bindNode);
+[...gPlate.children].forEach(bindNode);
+
+/* ── 流程追踪：按「拍」推进而不是按步——标了 par 的步骤与上一步同时发生 ── */
+let auto = null, beatIdx = -1, playPulses = [];
+const beatsOf = (steps = []) => steps.reduce((out, s, i) => {
+  if (i > 0 && s.par) out[out.length - 1].push(i); else out.push([i]);
+  return out;
+}, []);
+const curBeats = () => beatsOf(FLOWS[activeFlow]?.steps);
+function clearPulses() { for (const p of playPulses) p.remove(); playPulses = []; }
+function addPulse(pathEl, myBeat) {
+  const len = pathEl.getTotalLength(), t0 = performance.now(), dur = motionOK ? 340 : 0;
+  const pulse = el("path", { d: pathEl.getAttribute("d"), stroke: "#FFFFFF", "stroke-width": 3,
+    fill: "none", "stroke-linecap": "round", opacity: .95,
+    "stroke-dasharray": `22 ${(len + 22).toFixed(1)}`, "stroke-dashoffset": 22 }, gTag);
+  playPulses.push(pulse);
+  (function anim(now) {
+    const k = dur ? Math.min((now - t0) / dur, 1) : 1;
+    pulse.setAttribute("stroke-dashoffset", (22 - k * (len + 22)).toFixed(1));
+    if (k < 1 && beatIdx === myBeat) requestAnimationFrame(anim);
+  })(t0);
+}
+function showBeat(k) {
+  const F = FLOWS[activeFlow], beats = beatsOf(F?.steps);
+  if (!F || k < 0 || k >= beats.length) return;
+  beatIdx = k;
+  const now = new Set(beats[k]), done = new Set(beats.slice(0, k).flat());
+  sel = beats[k][0]; markSel(null); render();
+  flowEls.forEach(({ p, glow }, j) => {
+    const isNow = now.has(j);
+    p.setAttribute("stroke", isNow ? "var(--accent)" : "var(--ink)");
+    p.setAttribute("stroke-width", isNow ? 2.6 : done.has(j) ? 2 : 1.6);
+    p.setAttribute("marker-end", isNow ? "url(#arrA)" : "url(#arr)");
+    p.setAttribute("opacity", isNow || done.has(j) ? 1 : .35);
+    glow.setAttribute("opacity", isNow ? .22 : 0);
+  });
+  const steps = beats[k].map(j => F.steps[j]);
+  focusSet(new Set(steps.flatMap(s => [s.from, s.to])));
+  for (const s of steps) hopNode(s.to);
+  gStreak.style.display = "none";
+  clearPulses();
+  for (const j of beats[k]) if (flowEls[j]) addPulse(flowEls[j].p, k);
+}
+const showStep = i => showBeat(curBeats().findIndex(b => b.includes(i)));
+function pauseAuto() { if (auto) clearTimeout(auto); auto = null; }
+function stopFlowVisual() {
+  pauseAuto(); beatIdx = -1; clearPulses();
+  gStreak.style.display = "";
+  flowEls.forEach(({ p, glow }) => { p.setAttribute("stroke", "var(--ink)");
+    p.setAttribute("stroke-width", 1.6); p.setAttribute("marker-end", "url(#arr)");
+    p.setAttribute("opacity", 1); glow.setAttribute("opacity", 0); });
+}
+document.getElementById("btnPlay").onclick = () => {
+  if (activeFlow < 0) { activeFlow = 0; syncFlowbar(); }
+  stopFlowVisual(); buildEdges(stepsOf(activeFlow)); showBeat(0);
+  const total = curBeats().length;
+  const tick = () => {
+    if (beatIdx + 1 >= total) { auto = null; return; }
+    showBeat(beatIdx + 1);
+    auto = setTimeout(tick, motionOK ? 620 : 400);
+  };
+  auto = setTimeout(tick, motionOK ? 620 : 400);
+};
+document.getElementById("btnStep").onclick = () => {
+  if (activeFlow < 0) { activeFlow = 0; syncFlowbar(); buildEdges(stepsOf(0)); }
+  pauseAuto(); showBeat((beatIdx + 1) % (curBeats().length || 1));
+};
+
+/* ── 取景 / 平移缩放 / 响应式 ── */
+const stage = document.getElementById("stage");
+function fitHome() {
+  const boxes = [gDist.getBBox(), gNode.getBBox(), gPlate.getBBox(), gTag.getBBox()];
+  const x = Math.min(...boxes.map(b => b.x)) - 18, y = Math.min(...boxes.map(b => b.y)) - 16;
+  return { x, y,
+    w: Math.max(...boxes.map(b => b.x + b.width)) + 18 - x,
+    h: Math.max(...boxes.map(b => b.y + b.height)) + 16 - y };
+}
+const HOME = fitHome();
+let vb = { ...HOME }, homeView = true;
+const applyVB = () => svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+document.getElementById("btnReset").onclick = () => { stopFlowVisual(); select(null); vbT = null; vb = { ...HOME }; homeView = true; applyVB(); };
+new ResizeObserver(() => { if (homeView) applyVB(); }).observe(stage);
+let pan = null, moved = false, pinch = null;
+const touches = new Map();
+stage.addEventListener("pointerdown", e => {
+  if (e.target.closest(".b") || e.target.closest(".lk") || e.target.closest("#flowbar")) return;
+  if (vbT) { vb = { ...vbT }; vbT = null; applyVB(); }   // 手势接管前先把追赶中的缩放落定
+  touches.set(e.pointerId, [e.clientX, e.clientY]);
+  stage.setPointerCapture(e.pointerId);
+  if (touches.size === 2) {   // 双指捿合：以按下时取景为基准缩放
+    const [a, b] = [...touches.values()];
+    pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, vb: { ...vb } };
+    pan = null; moved = true;
+    stage.classList.remove("panning");
+    return;
+  }
+  // 记住起手落在哪块地板：指针捕获后 pointerup/click 的 target 都会被重定向到画布，当场判不出来
+  pan = { px: e.clientX, py: e.clientY, x: vb.x, y: vb.y, floor: e.target.closest(".dfloor")?.dataset.d || null };
+  moved = false;
+  stage.classList.add("panning");
+});
+stage.addEventListener("pointermove", e => {
+  if (touches.has(e.pointerId)) touches.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pinch && touches.size >= 2) {
+    const [a, b] = [...touches.values()];
+    const k = pinch.d / (Math.hypot(a[0] - b[0], a[1] - b[1]) || 1);
+    const r = svg.getBoundingClientRect();
+    const mx = pinch.vb.x + ((a[0] + b[0]) / 2 - r.left) / r.width * pinch.vb.w;
+    const my = pinch.vb.y + ((a[1] + b[1]) / 2 - r.top) / r.height * pinch.vb.h;
+    vb = { x: mx - (mx - pinch.vb.x) * k, y: my - (my - pinch.vb.y) * k, w: pinch.vb.w * k, h: pinch.vb.h * k };
+    homeView = false; applyVB();
+    return;
+  }
+  if (!pan) return;
+  if (Math.hypot(e.clientX - pan.px, e.clientY - pan.py) > 3) moved = true;
+  const k = vb.w / stage.clientWidth;
+  vb.x = pan.x - (e.clientX - pan.px) * k; vb.y = pan.y - (e.clientY - pan.py) * k;
+  if (moved) { homeView = false; applyVB(); }
+});
+const endPointer = e => {
+  touches.delete(e.pointerId);
+  if (touches.size < 2) pinch = null;
+};
+stage.addEventListener("pointercancel", endPointer);
+stage.addEventListener("pointerup", e => {
+  endPointer(e);
+  const wasPan = pan; pan = null; stage.classList.remove("panning");
+  if (e.pointerType !== "mouse") hideEdgeTag();   // 触屏无 mouseleave，气泡会滞留
+  // 未拖动的单击：落在地板上选中分区，落在真空白处取消选中
+  if (wasPan && !moved) select(wasPan.floor ? { district: wasPan.floor } : null);
+});
+stage.addEventListener("wheel", e => {
+  e.preventDefault();
+  const k = e.deltaY > 0 ? 1.12 : 1 / 1.12;
+  const b = vbT || vb;   // 连续滚轮在目标上复利，锚点映射才不漂
+  const r = svg.getBoundingClientRect();
+  const mx = b.x + (e.clientX - r.left) / r.width * b.w;
+  const my = b.y + (e.clientY - r.top) / r.height * b.h;
+  const t = { x: mx - (mx - b.x) * k, y: my - (my - b.y) * k, w: b.w * k, h: b.h * k };
+  homeView = false;
+  if (motionOK) vbT = t; else { vb = t; applyVB(); }
+}, { passive: false });
+
+applyVB();
+render();
+</script>
+</body>
+</html>
