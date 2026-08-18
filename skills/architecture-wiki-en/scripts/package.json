@@ -1,0 +1,9 @@
+{
+  "name": "architecture-wiki-scripts",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "oxc-parser": "^0.144.0",
+    "oxc-resolver": "^11.24.2"
+  }
+}

@@ -2,74 +2,74 @@
 
 # Architecture Wiki
 
-**让 ARCHITECTURE.md 退休：代码一变立刻发现，架构咋能这么清晰？**
+**Retire your ARCHITECTURE.md: code changes surface instantly — how did architecture get this clear?**
 
-[English](./README.en.md) · [在线 Demo](https://suge8.github.io/architecture-wiki/demo/)
+[中文](./README.zh-CN.md) · [Live Demo (Chinese)](https://suge8.github.io/architecture-wiki/demo/)
 
-<img src="docs/assets/hero.png" width="92%" alt="Architecture Wiki 渲染的等距城市：分区、模块建筑、运行流连线、体检评分与 wiki 面板">
+<img src="docs/assets/hero.png" width="92%" alt="Isometric city rendered by Architecture Wiki: districts, module buildings, runtime flows, health score and wiki panel">
 
 </div>
 
-装上这个 skill，你的 coding agent 会为仓库建立并持续维护 `docs/architecture/`。同一份文档，三方各取所需：
+Install this skill and your coding agent builds and maintains `docs/architecture/` for any repo. One document, three consumers:
 
-- **人**打开网页：等距城市地图、按入口逐拍播放的调用链、每个模块一页人话介绍——不啃 Markdown。
-- **AI** 读 wiki：每条论断都带来源文件、内容哈希和锚定符号，agent 一读就懂项目情况。
-- **仓库**接入 lint/CI：代码变了，`verify.mjs` 指出哪一页过期并打印对应 diff，同步不再靠自觉。
+- **Humans** open a webpage: an isometric city map, call chains played back entry by entry, one plain-language page per module — no Markdown digging.
+- **AI** reads the wiki: every claim carries source files, content hashes and anchored symbols, so an agent understands the project on first read.
+- **The repo** wires it into lint/CI: when code changes, `verify.mjs` names the stale page and shows the diff — syncing no longer relies on discipline.
 
 <div align="center">
-<img src="docs/assets/demo.gif" width="92%" alt="演示：场景播放逐拍点亮调用链，体检报告展示评分与死代码清单">
+<img src="docs/assets/demo.gif" width="92%" alt="Demo: scenario playback lights up call chains beat by beat; the health report shows score and dead-code findings">
 </div>
 
-## 全仓体检
+## Full-repo health check
 
-建 wiki 的同时顺手做一次全仓体检：没人引用的死文件、循环依赖、又大又常改的高危文件、断掉的 import，一次查清。工具的每条发现都复核过才进报告，不拿误报吓人；有问题的模块在地图上顶着警示标，点一下直达报告对应小节。
+Building the wiki also runs a full-repo checkup: files nobody imports, dependency cycles, big files that change all the time, broken imports — found in one pass. Every tool finding is reviewed before it enters the report, so false positives don't cry wolf. Troubled modules wear a badge on the map that jumps straight to the matching section.
 
 <div align="center">
-<img src="docs/assets/health.png" width="92%" alt="体检报告：评分环与优化建议、死代码防误报复核、循环依赖分析">
+<img src="docs/assets/health.png" width="92%" alt="Health report: score gauge with improvement hints, dead-code review reasoning, cycle analysis">
 </div>
 
-## 如何实现
+## How it works
 
-wiki 里每条论断都有出处：引用了哪个文件、点名了哪个函数，都记着内容指纹，文件一改、函数一没就会被查出来。网页只是 wiki 渲染出来的皮，删了随时重建。判断过期的不是 AI 的自觉，而是一个零依赖小脚本（node + git 就能跑）：AI 负责读懂和改写，脚本负责盯梢。
+Every claim in the wiki carries its receipts: which file it cites, which function it names, recorded with a content fingerprint — change the file or delete the function and it gets caught. The webpage is just a rendering of the wiki; delete it and rebuild anytime. Staleness isn't left to the AI's discipline: a tiny zero-dependency script (node + git) does the watching, while the AI does the understanding and rewriting.
 
-## 安装
+## Install
 
-将以下粘贴发送给 Agent：
+Paste this to your agent:
 
 ```text
 Install the skills from https://github.com/Suge8/architecture-wiki
 ```
 
-## 使用
+## Usage
 
-skill 为显式调用设计（重工作流，不自动触发）。对 agent 说：
-
-```text
-用 architecture-wiki 给这个仓库建架构 wiki
-```
-
-代码演进后，或 CI 里 verify 报错时：
+The skill is invoked explicitly (a heavyweight workflow, not auto-triggered). Tell your agent:
 
 ```text
-用 architecture-wiki 同步架构 wiki
+Use architecture-wiki to build an architecture wiki for this repo
 ```
 
-需要 Node.js 18+ 与 git；JS/TS 仓库的依赖图另需 bun 或 npm。
+After code evolves, or when verify fails in CI:
 
-## 语言支持
+```text
+Use architecture-wiki to sync the architecture wiki
+```
 
-| 语言 | 依赖图 | 状态 |
+Requires Node.js 18+ and git; JS/TS dependency graphs additionally need bun or npm.
+
+## Language support
+
+| Language | Dependency graph | Status |
 | --- | --- | --- |
-| JS / TS | 内置 oxc code-map | 实战验证 |
-| Go | `go list -json` | 命令表支持 |
-| Rust | `cargo metadata` | 命令表支持 |
-| Java / Kotlin | `jdeps` | 命令表支持 |
-| 其他 | agent 读码提取，verify 把关出处 | 降级路径 |
+| JS / TS | built-in oxc code-map | battle-tested |
+| Go | `go list -json` | command-table support |
+| Rust | `cargo metadata` | command-table support |
+| Java / Kotlin | `jdeps` | command-table support |
+| Others | agent reads code, verify guards sources | fallback path |
 
-## 界面语言
+## Language
 
-skill 文档与生成页面目前为中文（[为什么](docs/adr/0001-chinese-first-release.md)）。skill 正文由 agent 消费，模型双语——英文用户的 agent 同样能执行完整工作流。
+Chinese and English variants both ship in this repo; the installing agent picks one by your conversation language, and the generated pages follow ([ADR 0001](docs/adr/0001-bilingual-variants.md)).
 
 ## License
 
-[Apache-2.0](./LICENSE)，内联的 [Phosphor Icons](https://phosphoricons.com) 为 MIT（见 [NOTICE](./NOTICE)）。
+[Apache-2.0](./LICENSE); inlined [Phosphor Icons](https://phosphoricons.com) are MIT (see [NOTICE](./NOTICE)).
