@@ -2,7 +2,7 @@
 
 # Architecture Wiki
 
-**Retire your ARCHITECTURE.md: code changes surface instantly — how did architecture get this clear?**
+**Retire your doc rot: code changes surface instantly — how did architecture get this clear?**
 
 [中文](./README.zh-CN.md) · [Live Demo (Chinese)](https://suge8.github.io/architecture-wiki/demo/)
 
@@ -12,7 +12,7 @@
 
 Install this skill and your agent builds and maintains `docs/architecture/` for any repo:
 
-- **Humans**: open a webpage for a clear architecture map, playable call chains, module pages and a codebase health report — no more digging through MD files.
+- **Humans**: one webpage with a clear architecture map, playable call chains, module pages and a codebase health report — no more digging through MD files.
 - **AI**: every claim carries source files, content hashes and anchored symbols, so it understands the project on first read.
 - **The repo**: when code changes, `verify.mjs` names the stale page and shows the diff — syncing doesn't rely on discipline.
 

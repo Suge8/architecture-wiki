@@ -2,7 +2,7 @@
 
 # Architecture Wiki
 
-**让 ARCHITECTURE.md 退休：代码一变立刻发现，架构咋能这么清晰？**
+**让文档屎山退休：代码一变立刻发现，架构咋能这么清晰？**
 
 [English](./README.md) · [在线 Demo](https://suge8.github.io/architecture-wiki/demo/)
 
@@ -10,10 +10,10 @@
 
 </div>
 
-装上这个 skill，你的 agent 会为仓库建立并持续维护 `docs/architecture/`：
+装上这个 skill，Agent 会为仓库建立并持续维护 `docs/architecture/`：
 
-- **人**：打开网页，清晰架构地图、可播放的调用链、模块介绍、代码库体检报告，不用再啃 MD 文档。
-- **AI**：每条论断都带来源文件、内容哈希和锚定符号，一读就懂项目情况。
+- **人**：网页清晰架构地图、可播放的调用链、模块介绍、代码库体检报告，不用再啃 MD 文档。
+- **AI**：每条论断带来源文件、内容哈希和锚定符号，一读就懂项目情况。
 - **仓库**：代码变了，`verify.mjs` 指出哪一页过期并打印对应 diff，同步不靠自觉。
 
 <div align="center">
